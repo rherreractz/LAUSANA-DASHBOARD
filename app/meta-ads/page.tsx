@@ -2,8 +2,11 @@ import { loadDashboardData } from '@/lib/dashboardData';
 import { DashboardTabs } from '@/components/dashboard/dashboard-tabs';
 import type { CSSProperties } from 'react';
 
-// Revalida la página cada 60s (coordinado con el caché de página de Next).
-export const revalidate = 60;
+// Render dinámico siempre: la página vive detrás de login y lee el CRM en
+// vivo. `revalidate` entra en conflicto con los fetch `cache: 'no-store'` de
+// lib/hubspot.ts (DYNAMIC_SERVER_USAGE en build). El rate-limit hacia HubSpot
+// ya lo cubre el caché en memoria de 3 min de lib/hubspot.ts.
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   // Misma página que app/page.tsx (es donde /login redirige por defecto) —
