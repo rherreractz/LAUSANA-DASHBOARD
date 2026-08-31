@@ -57,6 +57,7 @@ interface CampaignResult {
       interests: string[];
       unresolvedCities: string[];
       unresolvedInterests: string[];
+      broadenedForNarrowAudience?: boolean;
     };
   };
 }
@@ -566,6 +567,12 @@ export function MetaCampaignPanel() {
                         ', ',
                       )}{' '}
                       — se omitió, el resto del targeting sí se aplicó.
+                    </p>
+                  )}
+                  {result.created.appliedTargeting.broadenedForNarrowAudience && (
+                    <p className="mt-1 text-xs text-yellow-500">
+                      ⚠ Meta rechazó la segmentación original por audiencia muy chica — se volvió a crear sin intereses y con un radio de
+                      ciudad más amplio (50 km) para que el Ad Set pudiera crearse. Revísalo en Ads Manager antes de activarlo.
                     </p>
                   )}
                 </>

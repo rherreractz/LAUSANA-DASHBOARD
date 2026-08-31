@@ -60,20 +60,56 @@ function isGraphError(value: unknown): value is GraphError {
   return !!value && typeof value === 'object' && '_error' in (value as object);
 }
 
+/**
+ * Lee el body de una respuesta de fetch como JSON, sin tronar con un error
+ * genérico ("Unexpected end of JSON input") si Meta devuelve algo vacío o
+ * cortado a medias (pasa por hipos de red, timeouts del lado de Meta, o
+ * rate limiting que corta la respuesta). En vez de eso, devuelve un objeto
+ * con el status y el texto crudo, para poder armar un mensaje de error que
+ * sí diga algo útil.
+ */
+async function safeParseJson(res: Response): Promise<any> {
+  const raw = await res.text();
+  if (!raw) {
+    return { __parseError: true, __status: res.status, __raw: '' };
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { __parseError: true, __status: res.status, __raw: raw.slice(0, 500) };
+  }
+}
+
+function graphErrorFromParsed(path: string, res: Response, data: any): GraphError {
+  if (data?.__parseError) {
+    console.error(`[metaCreative] POST ${path} devolvió una respuesta no-JSON (status ${data.__status}):`, data.__raw);
+    return {
+      _error: {
+        status: data.__status,
+        message: data.__raw
+          ? `Meta devolvió una respuesta inesperada (no-JSON, HTTP ${data.__status}): ${data.__raw}`
+          : `Meta devolvió una respuesta vacía (HTTP ${data.__status}) — probablemente un hipo de red o timeout, intenta de nuevo.`,
+        body: data.__raw,
+      },
+    };
+  }
+  const err = data?.error ?? {};
+  const detailedMessage = [err.error_user_title, err.error_user_msg, err.message, err.error_subcode ? `(subcode ${err.error_subcode})` : null]
+    .filter(Boolean)
+    .join(' — ');
+  console.error(`[metaCreative] POST ${path} falló:`, JSON.stringify(data, null, 2));
+  return { _error: { status: res.status, message: detailedMessage || `HTTP ${res.status}`, body: data } };
+}
+
 async function graphPostForm(path: string, form: FormData, token: string, apiVersion: string): Promise<any> {
   const url = `${GRAPH_BASE}/${apiVersion}/${path.replace(/^\//, '')}`;
   form.set('access_token', token);
 
   const res = await fetch(url, { method: 'POST', body: form });
-  const data = await res.json();
+  const data = await safeParseJson(res);
 
-  if (!res.ok) {
-    const err = data?.error ?? {};
-    const detailedMessage = [err.error_user_title, err.error_user_msg, err.message, err.error_subcode ? `(subcode ${err.error_subcode})` : null]
-      .filter(Boolean)
-      .join(' — ');
-    console.error(`[metaCreative] POST ${path} falló:`, JSON.stringify(data, null, 2));
-    return { _error: { status: res.status, message: detailedMessage || `HTTP ${res.status}`, body: data } } satisfies GraphError;
+  if (!res.ok || data?.__parseError) {
+    return graphErrorFromParsed(path, res, data) satisfies GraphError;
   }
 
   return data;
@@ -88,15 +124,10 @@ async function graphPostJSON(path: string, params: Record<string, unknown>, toke
   body.set('access_token', token);
 
   const res = await fetch(url, { method: 'POST', body });
-  const data = await res.json();
+  const data = await safeParseJson(res);
 
-  if (!res.ok) {
-    const err = data?.error ?? {};
-    const detailedMessage = [err.error_user_title, err.error_user_msg, err.message, err.error_subcode ? `(subcode ${err.error_subcode})` : null]
-      .filter(Boolean)
-      .join(' — ');
-    console.error(`[metaCreative] POST ${path} falló:`, JSON.stringify(data, null, 2));
-    return { _error: { status: res.status, message: detailedMessage || `HTTP ${res.status}`, body: data } } satisfies GraphError;
+  if (!res.ok || data?.__parseError) {
+    return graphErrorFromParsed(path, res, data) satisfies GraphError;
   }
 
   return data;
@@ -288,7 +319,16 @@ export async function createPausedAdWithVideo(input: CreateVideoAdInput): Promis
   while (Date.now() - start < maxWaitMs) {
     const statusUrl = `${GRAPH_BASE}/${apiVersion}/${videoId}?fields=status,thumbnails&access_token=${input.token}`;
     const res = await fetch(statusUrl);
-    const data = await res.json();
+    const data = await safeParseJson(res);
+
+    if (data?.__parseError) {
+      // Un hipo de red al consultar el estado no significa que el video
+      // haya fallado — solo lo salta y reintenta en el siguiente ciclo del
+      // polling, en vez de tronar toda la generación de campaña por esto.
+      console.error(`[metaCreative] Estado del video ${videoId}: respuesta no-JSON, se reintenta en el siguiente ciclo.`, data.__raw);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      continue;
+    }
 
     const videoStatus = data?.status?.video_status;
     if (videoStatus === 'ready') {

@@ -41,6 +41,54 @@ function isGraphError(value: unknown): value is GraphError {
   return !!value && typeof value === 'object' && '_error' in (value as object);
 }
 
+/**
+ * Lee el body de una respuesta de fetch como JSON, sin tronar con un error
+ * genérico ("Unexpected end of JSON input") si Meta devuelve algo vacío o
+ * cortado a medias (pasa por hipos de red, timeouts del lado de Meta, o
+ * rate limiting que corta la respuesta). En vez de eso, devuelve un objeto
+ * con el status y el texto crudo, para poder armar un mensaje de error que
+ * sí diga algo útil.
+ */
+async function safeParseJson(res: Response): Promise<any> {
+  const raw = await res.text();
+  if (!raw) {
+    return { __parseError: true, __status: res.status, __raw: '' };
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { __parseError: true, __status: res.status, __raw: raw.slice(0, 500) };
+  }
+}
+
+function graphErrorFromParsed(path: string, res: Response, data: any): GraphError {
+  if (data?.__parseError) {
+    console.error(`[metaCampaignCreate] POST ${path} devolvió una respuesta no-JSON (status ${data.__status}):`, data.__raw);
+    return {
+      _error: {
+        status: data.__status,
+        message: data.__raw
+          ? `Meta devolvió una respuesta inesperada (no-JSON, HTTP ${data.__status}): ${data.__raw}`
+          : `Meta devolvió una respuesta vacía (HTTP ${data.__status}) — probablemente un hipo de red o timeout, intenta de nuevo.`,
+        body: data.__raw,
+      },
+    };
+  }
+  const err = data?.error ?? {};
+  const detailedMessage = [
+    err.error_user_title,
+    err.error_user_msg,
+    err.message,
+    err.error_subcode ? `(subcode ${err.error_subcode})` : null,
+    err.fbtrace_id ? `[trace: ${err.fbtrace_id}]` : null,
+  ]
+    .filter(Boolean)
+    .join(' — ');
+
+  console.error(`[metaCampaignCreate] POST ${path} falló. Respuesta completa de Meta:`, JSON.stringify(data, null, 2));
+  return { _error: { status: res.status, message: detailedMessage || `HTTP ${res.status}`, body: data } };
+}
+
 async function graphPost(path: string, params: Record<string, unknown>, token: string, apiVersion: string): Promise<any> {
   const url = `${GRAPH_BASE}/${apiVersion}/${path.replace(/^\//, '')}`;
   const body = new URLSearchParams();
@@ -50,26 +98,11 @@ async function graphPost(path: string, params: Record<string, unknown>, token: s
   body.set('access_token', token);
 
   const res = await fetch(url, { method: 'POST', body });
-  const data = await res.json();
+  const data = await safeParseJson(res);
 
-  if (!res.ok) {
-    const err = data?.error ?? {};
-    const detailedMessage = [
-      err.error_user_title,
-      err.error_user_msg,
-      err.message,
-      err.error_subcode ? `(subcode ${err.error_subcode})` : null,
-      err.fbtrace_id ? `[trace: ${err.fbtrace_id}]` : null,
-    ]
-      .filter(Boolean)
-      .join(' — ');
-
+  if (!res.ok || data?.__parseError) {
     console.error(`[metaCampaignCreate] POST ${path} falló. Params enviados:`, params);
-    console.error(`[metaCampaignCreate] Respuesta completa de Meta:`, JSON.stringify(data, null, 2));
-
-    return {
-      _error: { status: res.status, message: detailedMessage || `HTTP ${res.status}`, body: data },
-    } satisfies GraphError;
+    return graphErrorFromParsed(path, res, data) satisfies GraphError;
   }
 
   return data;
@@ -85,6 +118,8 @@ export interface CreatePausedCampaignResult {
     interests: string[];
     unresolvedCities: string[];
     unresolvedInterests: string[];
+    /** true si Meta rechazó el targeting original por audiencia muy chica/inválida y se tuvo que reintentar sin intereses y con radio de ciudad más amplio. */
+    broadenedForNarrowAudience: boolean;
   };
 }
 
@@ -156,9 +191,43 @@ export async function createPausedCampaign(
     );
   }
 
-  const adSet = await graphPost(
-    `${accountId}/adsets`,
-    {
+  // Se arma como función (no como objeto suelto) porque, si Meta rechaza el
+  // Ad Set por audiencia demasiado chica/inválida (subcode 2446395 — "The
+  // configured audience is not valid, broaden your audience"), reintentamos
+  // UNA vez con una versión ensanchada, en vez de tronarle al usuario cada
+  // vez que la IA elige una combinación de intereses/radio que resulta
+  // demasiado angosta para esa ciudad.
+  function buildTargeting(broaden: boolean) {
+    const cityRadiusKm = broaden ? 50 : 25;
+    // Al ensanchar, quitamos los intereses primero — normalmente son el
+    // factor que más reduce el alcance estimado (una ciudad + rango de edad
+    // ya es bastante amplio por sí solo).
+    const interestsToUse = broaden ? [] : resolvedInterests;
+
+    return {
+      geo_locations:
+        resolvedCities.length > 0
+          ? // Si se resolvieron ciudades, se targetea SOLO esas ciudades
+            // (sin "countries" — Meta trata país + ciudades como "cualquiera
+            // de los dos", lo que seguiría siendo todo el país y anularía
+            // el propósito de acotar por ciudad).
+            { cities: resolvedCities.map((c) => ({ key: c.key, radius: cityRadiusKm, distance_unit: 'kilometer' })) }
+          : { countries: [countryCode] },
+      age_min: brief.ageMin,
+      age_max: brief.ageMax,
+      ...(genders ? { genders } : {}),
+      ...(interestsToUse.length > 0 ? { flexible_spec: [{ interests: interestsToUse.map((i) => ({ id: i.id, name: i.name })) }] } : {}),
+      // Requerido por Meta desde 2026: hay que decidir explícitamente si
+      // se activa Advantage+ Audience (Meta puede expandir el targeting
+      // más allá de lo que definiste, si detecta que rinde mejor). En 0
+      // (desactivado) para que el targeting se quede exacto como lo
+      // generó Claude — cámbialo a 1 si prefieres dejar que Meta expanda.
+      targeting_automation: { advantage_audience: 0 },
+    };
+  }
+
+  function buildAdSetParams(broaden: boolean) {
+    return {
       name: brief.adSetName,
       campaign_id: campaignId,
       status: 'PAUSED',
@@ -174,38 +243,32 @@ export async function createPausedCampaign(
       // 2026 con una prueba directa vía API (Ad Set creado sin error). Si
       // el bug regresara, comenta la línea de abajo como respaldo.
       ...(brief.objective === 'leads' ? { destination_type: 'ON_AD' } : {}),
-      targeting: {
-        geo_locations:
-          resolvedCities.length > 0
-            ? // Si se resolvieron ciudades, se targetea SOLO esas ciudades
-              // (sin "countries" — Meta trata país + ciudades como "cualquiera
-              // de los dos", lo que seguiría siendo todo el país y anularía
-              // el propósito de acotar por ciudad).
-              { cities: resolvedCities.map((c) => ({ key: c.key, radius: 25, distance_unit: 'kilometer' })) }
-            : { countries: [countryCode] },
-        age_min: brief.ageMin,
-        age_max: brief.ageMax,
-        ...(genders ? { genders } : {}),
-        ...(resolvedInterests.length > 0
-          ? { flexible_spec: [{ interests: resolvedInterests.map((i) => ({ id: i.id, name: i.name })) }] }
-          : {}),
-        // Requerido por Meta desde 2026: hay que decidir explícitamente si
-        // se activa Advantage+ Audience (Meta puede expandir el targeting
-        // más allá de lo que definiste, si detecta que rinde mejor). En 0
-        // (desactivado) para que el targeting se quede exacto como lo
-        // generó Claude — cámbialo a 1 si prefieres dejar que Meta expanda.
-        targeting_automation: { advantage_audience: 0 },
-      },
+      targeting: buildTargeting(broaden),
       start_time: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 min en el futuro, requerido por la API aunque esté PAUSED
-    },
-    token,
-    apiVersion,
-  );
+    };
+  }
+
+  let adSet = await graphPost(`${accountId}/adsets`, buildAdSetParams(false), token, apiVersion);
+  let usedBroadenedTargeting = false;
 
   if (isGraphError(adSet)) {
-    // Si el ad set falla, la campaña quedó creada (vacía) — lo dejamos así
-    // en vez de borrarla, para no complicar el flujo; queda visible en Ads
-    // Manager como borrador sin ad sets.
+    const subcode = (adSet._error.body as any)?.error?.error_subcode;
+    const isNarrowAudience = subcode === 2446395;
+
+    if (isNarrowAudience) {
+      console.warn(
+        '[metaCampaignCreate] Meta rechazó el Ad Set por audiencia muy chica/inválida — reintentando con targeting ensanchado (sin intereses, radio de ciudad más amplio).',
+      );
+      adSet = await graphPost(`${accountId}/adsets`, buildAdSetParams(true), token, apiVersion);
+      usedBroadenedTargeting = true;
+    }
+  }
+
+  if (isGraphError(adSet)) {
+    // Si el ad set falla (incluso después del reintento ensanchado), la
+    // campaña quedó creada (vacía) — lo dejamos así en vez de borrarla, para
+    // no complicar el flujo; queda visible en Ads Manager como borrador sin
+    // ad sets.
     throw new Error(`La campaña se creó, pero no se pudo crear el Ad Set: ${adSet._error.message}`);
   }
 
@@ -217,9 +280,14 @@ export async function createPausedCampaign(
     adsManagerUrl: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${accountId.replace('act_', '')}&selected_campaign_ids=${campaignId}`,
     appliedTargeting: {
       cities: resolvedCities.map((c) => c.name),
-      interests: resolvedInterests.map((i) => i.name),
+      // Si se usó la versión ensanchada, los intereses se quitaron de
+      // verdad del Ad Set real — se refleja aquí para que el dashboard no
+      // le diga al usuario que se aplicaron intereses que en realidad no
+      // quedaron en la campaña.
+      interests: usedBroadenedTargeting ? [] : resolvedInterests.map((i) => i.name),
       unresolvedCities,
       unresolvedInterests,
+      broadenedForNarrowAudience: usedBroadenedTargeting,
     },
   };
 }
