@@ -1,27 +1,47 @@
-import { normalizeEmail } from './leadUtils';
+import { normalizeEmail, ghlLeadToRawLead } from './leadUtils';
+import type { RawLead } from './types';
 
 /**
  * Integración con GoHighLevel (GHL) — API v2, autenticada con un Private
  * Integration Token (los API Keys viejos de v1 ya no se pueden generar,
  * GHL los dio de baja a finales de 2025).
  *
- * Trae las oportunidades (tus leads dentro de GHL) con su Stage del
- * pipeline y el usuario asignado, y arma un mapa por CORREO normalizado
- * para mezclarlo con los leads que ya vienen de Sheets/HubSpot — mismo
- * patrón que lib/hubspot.ts.
+ * Lausana usa HubSpot como fuente principal hoy, pero este archivo deja
+ * lista la MISMA capacidad que ya tiene vtower para usar GHL como fuente
+ * (ver getGhlRawLeads() abajo) — así, el día que este cliente tenga cuenta
+ * real de GHL, cambiar la fuente desde Ajustes → Ajustes avanzados
+ * "simplemente funciona", sin más código.
+ *
+ *   - getGhlRawLeads()  -> RawLead[] de TODAS las oportunidades (fuente
+ *     primaria). NO descarta oportunidades sin correo — solo un contacto
+ *     sin correo no podrá cruzarse por correo con otra fuente.
+ *   - getGhlStatusMap() -> Map por correo (para enriquecer leads que
+ *     vengan de otro lado — no se usa mientras el CRM activo sea GHL vía
+ *     getGhlRawLeads(), se conserva por compatibilidad con el patrón
+ *     original de este proyecto).
+ *
+ * A diferencia de vtower, AQUÍ NO se filtra por un pipeline específico por
+ * default — no conocemos todavía la estructura real de pipelines de la
+ * cuenta de GHL de Lausana. Si hace falta acotar a un pipeline en
+ * particular más adelante (igual que vtower con "Marketing Pipeline"),
+ * defínelo en GHL_MARKETING_PIPELINE_NAME.
  *
  * Variables de entorno requeridas:
  * GHL_PRIVATE_TOKEN="pit-..."
  * GHL_LOCATION_ID="..."
  *
- * Opcional — si el endpoint de usuarios de GHL no responde bien (le pasó a
- * otra herramienta del equipo, según vimos), puedes definir un mapa fijo
- * de respaldo en vez de depender de la API:
+ * Opcionales:
+ * GHL_MARKETING_PIPELINE_NAME="..."
+ *   Si se define, getGhlRawLeads() SOLO trae oportunidades de ese pipeline
+ *   (por nombre exacto, no distingue mayúsculas). Si se deja vacío, trae
+ *   oportunidades de TODOS los pipelines de la cuenta.
  * GHL_USERS_FALLBACK='{"userId1":"Nombre Apellido","userId2":"Otro Nombre"}'
+ *   Mapa fijo de respaldo si el endpoint de usuarios de GHL falla.
  */
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 const GHL_API_VERSION = '2021-07-28';
+const MARKETING_PIPELINE_NAME = process.env.GHL_MARKETING_PIPELINE_NAME || '';
 
 interface GhlPipelineStage {
   id: string;
@@ -34,6 +54,12 @@ interface GhlPipeline {
   stages: GhlPipelineStage[];
 }
 
+interface GhlAttribution {
+  utmCampaign?: string | null;
+  isFirst?: boolean;
+  isLast?: boolean;
+}
+
 interface GhlOpportunity {
   id: string;
   name: string;
@@ -41,7 +67,13 @@ interface GhlOpportunity {
   pipelineStageId: string;
   assignedTo?: string | null;
   contactId: string;
-  contact?: { email?: string | null; phone?: string | null } | null;
+  /** Fuente/atribución de la oportunidad, si GHL la trae (ej. "Facebook"). */
+  source?: string | null;
+  createdAt?: string | null;
+  dateAdded?: string | null;
+  contact?: { name?: string | null; email?: string | null; phone?: string | null } | null;
+  /** Historial de atribución UTM — de aquí sacamos utmCampaign si existe. */
+  attributions?: GhlAttribution[] | null;
 }
 
 export interface GhlStatusEntry {
@@ -77,6 +109,16 @@ async function fetchPipelines(token: string, locationId: string): Promise<Map<st
   return new Map(pipelines.map((p) => [p.id, p]));
 }
 
+/** Busca, por NOMBRE (no case-sensitive), el pipeline configurado como fuente de leads — solo si GHL_MARKETING_PIPELINE_NAME está definido. */
+function resolveMarketingPipeline(pipelines: Map<string, GhlPipeline>): GhlPipeline | null {
+  if (!MARKETING_PIPELINE_NAME) return null;
+  const target = MARKETING_PIPELINE_NAME.trim().toLowerCase();
+  for (const pipeline of pipelines.values()) {
+    if (pipeline.name.trim().toLowerCase() === target) return pipeline;
+  }
+  return null;
+}
+
 /**
  * Trae el mapa userId -> nombre. Primero intenta la API real; si falla o
  * viene vacía (le pasa a veces a GHL), cae al mapa fijo de
@@ -101,7 +143,6 @@ async function fetchUsersMap(token: string, locationId: string): Promise<Map<str
     console.error('[ghl] Error de red al leer usuarios, se usará el respaldo si existe:', error);
   }
 
-  // Respaldo: mapa fijo por variable de entorno.
   const fallbackRaw = process.env.GHL_USERS_FALLBACK;
   if (fallbackRaw) {
     try {
@@ -115,15 +156,19 @@ async function fetchUsersMap(token: string, locationId: string): Promise<Map<str
   return new Map();
 }
 
-/** Trae TODAS las oportunidades de la Location (paginado). */
-async function fetchAllOpportunities(token: string, locationId: string): Promise<GhlOpportunity[]> {
+/**
+ * Trae TODAS las oportunidades de la Location (paginado), filtradas a un
+ * solo pipeline si se pasa `pipelineId` (útil una vez que se sepa cuál es
+ * el pipeline real de leads de Lausana en GHL).
+ */
+async function fetchAllOpportunities(token: string, locationId: string, pipelineId?: string): Promise<GhlOpportunity[]> {
   const all: GhlOpportunity[] = [];
+  const pipelineFilter = pipelineId ? `&pipeline_id=${encodeURIComponent(pipelineId)}` : '';
   let nextPageUrl: string | null =
-    `${GHL_API_BASE}/opportunities/search?location_id=${encodeURIComponent(locationId)}&limit=100`;
+    `${GHL_API_BASE}/opportunities/search?location_id=${encodeURIComponent(locationId)}&limit=100${pipelineFilter}`;
 
   // Tope de seguridad: máximo 60 páginas (a 100 por página = 6000
-  // oportunidades). La cuenta real tiene ~4,642 al momento de escribir
-  // esto — con margen para que siga creciendo sin tocar código.
+  // oportunidades) — con margen para que la cuenta siga creciendo.
   let safety = 0;
   while (nextPageUrl && safety < 60) {
     safety += 1;
@@ -135,41 +180,133 @@ async function fetchAllOpportunities(token: string, locationId: string): Promise
     const data = await res.json();
     const opportunities: GhlOpportunity[] = data.opportunities ?? [];
     all.push(...opportunities);
-
-    // La API v2 de GHL pagina con un cursor "meta.nextPageUrl" o similar —
-    // si no viene, asumimos que ya no hay más páginas.
     nextPageUrl = data.meta?.nextPageUrl ?? null;
   }
 
   return all;
 }
 
+/** Saca el nombre de campaña (utmCampaign) de la atribución de una oportunidad — prioriza el primer touchpoint (isFirst). */
+function pickCampaignFromAttributions(attributions?: GhlAttribution[] | null): string {
+  if (!attributions || attributions.length === 0) return '';
+  const chosen = attributions.find((a) => a.isFirst) ?? attributions[0];
+  return chosen?.utmCampaign?.trim() || '';
+}
+
+interface GhlDataSnapshot {
+  pipelines: Map<string, GhlPipeline>;
+  usersMap: Map<string, string>;
+  opportunities: GhlOpportunity[];
+}
+
 /**
  * Versión SIN caché — hace el trabajo pesado real (pipelines + usuarios +
- * las ~47 páginas de oportunidades). Úsala solo si necesitas datos 100%
- * frescos ahora mismo; para el uso normal del dashboard usa
- * getGhlStatusMap() de abajo, que cachea el resultado.
+ * las páginas de oportunidades). Úsala solo si necesitas datos 100%
+ * frescos ahora mismo; para el uso normal usa getGhlData() de abajo, que
+ * cachea el resultado y lo comparte entre getGhlRawLeads()/getGhlStatusMap()
+ * para no pagar el fetch pesado dos veces.
  */
-async function getGhlStatusMapUncached(): Promise<GhlStatusMap> {
+async function getGhlDataUncached(): Promise<GhlDataSnapshot> {
   const token = process.env.GHL_PRIVATE_TOKEN;
   const locationId = process.env.GHL_LOCATION_ID;
 
   if (!token || !locationId) {
     console.error('[ghl] Faltan GHL_PRIVATE_TOKEN / GHL_LOCATION_ID — se omite la integración con GoHighLevel.');
-    return { byEmail: new Map() };
+    return { pipelines: new Map(), usersMap: new Map(), opportunities: [] };
   }
 
-  const [pipelines, usersMap, opportunities] = await Promise.all([
-    fetchPipelines(token, locationId),
+  const pipelines = await fetchPipelines(token, locationId);
+  const marketingPipeline = resolveMarketingPipeline(pipelines);
+
+  if (MARKETING_PIPELINE_NAME && !marketingPipeline) {
+    console.error(
+      `[ghl] No se encontró el pipeline "${MARKETING_PIPELINE_NAME}" entre los pipelines de la cuenta ` +
+        `(${Array.from(pipelines.values()).map((p) => p.name).join(', ') || 'ninguno'}). Se traen TODOS los pipelines por esta vez.`,
+    );
+  }
+
+  const [usersMap, rawOpportunities] = await Promise.all([
     fetchUsersMap(token, locationId),
-    fetchAllOpportunities(token, locationId),
+    fetchAllOpportunities(token, locationId, marketingPipeline?.id),
   ]);
+
+  const byId = new Map<string, GhlOpportunity>();
+  rawOpportunities.forEach((opp) => byId.set(opp.id, opp));
+
+  return { pipelines, usersMap, opportunities: Array.from(byId.values()) };
+}
+
+/**
+ * CACHÉ EN MEMORIA — evita pagar el costo del fetch pesado en cada carga
+ * del dashboard. Compartido entre getGhlRawLeads() y getGhlStatusMap().
+ */
+const GHL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+let ghlCache: { data: GhlDataSnapshot; fetchedAt: number } | null = null;
+let ghlCacheInFlight: Promise<GhlDataSnapshot> | null = null;
+
+async function getGhlData(): Promise<GhlDataSnapshot> {
+  const now = Date.now();
+
+  if (ghlCache && now - ghlCache.fetchedAt < GHL_CACHE_TTL_MS) {
+    return ghlCache.data;
+  }
+  if (ghlCacheInFlight) {
+    return ghlCacheInFlight;
+  }
+
+  ghlCacheInFlight = getGhlDataUncached()
+    .then((data) => {
+      ghlCache = { data, fetchedAt: Date.now() };
+      return data;
+    })
+    .finally(() => {
+      ghlCacheInFlight = null;
+    });
+
+  return ghlCacheInFlight;
+}
+
+/**
+ * Fuente ALTERNA de leads (se activa desde Ajustes → Ajustes avanzados →
+ * Fuente de leads = GoHighLevel): TODAS las oportunidades convertidas a
+ * RawLead[]. NO descarta oportunidades sin correo (se dedupe por id de
+ * oportunidad, no por correo).
+ */
+export async function getGhlRawLeads(): Promise<RawLead[]> {
+  const { pipelines, usersMap, opportunities } = await getGhlData();
+
+  const leads = opportunities.map((opp) => {
+    const pipeline = pipelines.get(opp.pipelineId);
+    const stage = pipeline?.stages.find((s) => s.id === opp.pipelineStageId);
+
+    return ghlLeadToRawLead({
+      createdAt: opp.createdAt || opp.dateAdded || '',
+      nombre: opp.contact?.name || opp.name || 'Sin nombre',
+      correo: opp.contact?.email || '',
+      telefono: opp.contact?.phone || '',
+      fuente: opp.source || '',
+      campana: pickCampaignFromAttributions(opp.attributions),
+      estadoGHL: stage?.name ?? 'Sin etapa',
+      pipelineGHL: pipeline?.name ?? 'Sin pipeline',
+      personaEncargadaGHL: opp.assignedTo ? (usersMap.get(opp.assignedTo) ?? 'Sin asignar') : 'Sin asignar',
+    });
+  });
+
+  console.log(`[ghl] getGhlRawLeads: ${leads.length} oportunidades convertidas a leads.`);
+
+  return leads;
+}
+
+/** Mapa por correo normalizado — para ENRIQUECER leads que ya vienen de otro lado (no se usa mientras GHL sea la fuente primaria). */
+export async function getGhlStatusMap(): Promise<GhlStatusMap> {
+  const { pipelines, usersMap, opportunities } = await getGhlData();
 
   const byEmail = new Map<string, GhlStatusEntry>();
 
   for (const opp of opportunities) {
     const email = normalizeEmail(opp.contact?.email);
-    if (!email) continue; // sin correo no podemos cruzarlo con tus leads
+    if (!email) continue;
 
     const pipeline = pipelines.get(opp.pipelineId);
     const stage = pipeline?.stages.find((s) => s.id === opp.pipelineStageId);
@@ -184,48 +321,6 @@ async function getGhlStatusMapUncached(): Promise<GhlStatusMap> {
   console.log(`[ghl] Refrescado: ${byEmail.size} correos indexados de ${opportunities.length} oportunidades.`);
 
   return { byEmail };
-}
-
-/**
- * CACHÉ EN MEMORIA — la cuenta tiene ~4,600 oportunidades, traerlas todas
- * (paginado, ~47 llamadas seguidas a la API) tarda 15-30+ segundos. Sin
- * caché, esto pasaba en CADA carga del dashboard. Con esto, solo la
- * primera visita (o la primera después de que expire el caché) paga ese
- * costo — el resto se sirve al instante desde memoria.
- *
- * Vive mientras la función serverless siga "caliente" (Vercel reutiliza
- * la misma instancia entre requests seguidos) — en un cold start se
- * vuelve a llenar solo, sin que haya que hacer nada manualmente.
- */
-const GHL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos — alineado con el auto-refresco del panel
-
-let ghlCache: { data: GhlStatusMap; fetchedAt: number } | null = null;
-let ghlCacheInFlight: Promise<GhlStatusMap> | null = null;
-
-export async function getGhlStatusMap(): Promise<GhlStatusMap> {
-  const now = Date.now();
-
-  if (ghlCache && now - ghlCache.fetchedAt < GHL_CACHE_TTL_MS) {
-    return ghlCache.data;
-  }
-
-  // Si ya hay un refresh en curso (dos requests casi al mismo tiempo con
-  // el caché vencido), que ambas esperen la MISMA llamada en vez de
-  // disparar el fetch pesado dos veces por separado.
-  if (ghlCacheInFlight) {
-    return ghlCacheInFlight;
-  }
-
-  ghlCacheInFlight = getGhlStatusMapUncached()
-    .then((data) => {
-      ghlCache = { data, fetchedAt: Date.now() };
-      return data;
-    })
-    .finally(() => {
-      ghlCacheInFlight = null;
-    });
-
-  return ghlCacheInFlight;
 }
 
 /** Busca el estado de GHL de un lead por su correo (ya normalizado o crudo). */

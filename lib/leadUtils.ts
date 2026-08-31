@@ -180,6 +180,78 @@ export function getHubspotRawLeads(hubspotMap: HubspotStatusMap): RawLead[] {
   return hubspotMap.all.map(hubspotContactToRawLead);
 }
 
+// ---------------------------------------------------------------------------
+// GoHighLevel como fuente ALTERNA de leads (para el toggle de Ajustes
+// avanzados → Fuente de leads). Lausana usa HubSpot hoy, pero esto deja
+// listo el mismo patrón que ya usa vtower, para poder cambiar de fuente sin
+// más código el día que este cliente tenga cuenta de GHL real. Equivalente
+// a hubspotContactToRawLead()/getHubspotRawLeads() de arriba, pero para GHL.
+// ---------------------------------------------------------------------------
+
+/**
+ * Forma ya resuelta de una oportunidad de GHL (nombre de stage, de pipeline
+ * y de la persona asignada ya buscados) — no el objeto crudo de la API
+ * (ese vive en lib/ghl.ts, que ya tiene sus propios tipos). Se define como
+ * forma plana aquí, en vez de importar los tipos de ghl.ts, para evitar un
+ * import circular en tiempo de ejecución (ghl.ts ya importa funciones de
+ * este archivo).
+ */
+export interface GhlLeadInput {
+  createdAt: string;
+  nombre: string;
+  correo: string;
+  telefono: string;
+  fuente: string;
+  /** Nombre de campaña sacado de la atribución UTM de GHL (utmCampaign), si existe. */
+  campana: string;
+  estadoGHL: string;
+  pipelineGHL: string;
+  personaEncargadaGHL: string;
+}
+
+/**
+ * Convierte una oportunidad de GoHighLevel en un RawLead, para usarla como
+ * fuente PRIMARIA (a diferencia de mergeGhlStatus(), que solo enriquece
+ * leads que ya vienen de otro lado). Los campos que solo existían en el
+ * Sheet/HubSpot y que GHL no tiene de forma nativa (Presupuesto, Motivo,
+ * TiempoParaInvertir, Equipo, Proveedor) quedan vacíos — se muestran como
+ * "No especificado" (o "—" en la tabla) una vez procesados. "Fuente" se
+ * llena con el campo `source` de la oportunidad (ej. "Facebook"); si no
+ * viene, cae a "GoHighLevel". "Campaña" se llena con el `utmCampaign` de
+ * la atribución de GHL cuando existe; si no hay atribución, queda vacía.
+ *
+ * Importante: además de los campos de RawLead, esto agrega
+ * estadoGHL/pipelineGHL/personaEncargadaGHL directamente en el objeto (en
+ * vez de depender de mergeGhlStatus(), que cruza por correo) — así un lead
+ * SIN correo no se queda sin su estado de GHL. processLeads() conserva
+ * cualquier propiedad extra del objeto original porque arma el resultado
+ * con spread (`{ ...lead, ... }`), y ProcessedLead ya declara esos tres
+ * campos como opcionales (lib/types.ts) — no hace falta tocar ese tipo.
+ */
+export function ghlLeadToRawLead(
+  g: GhlLeadInput,
+): RawLead & { estadoGHL: string; pipelineGHL: string; personaEncargadaGHL: string } {
+  return {
+    Fecha: g.createdAt,
+    Campana: g.campana || '',
+    Nombre: g.nombre || 'Sin nombre',
+    Correo: g.correo,
+    Telefono: g.telefono,
+    Presupuesto: '',
+    Motivo: '',
+    TiempoParaInvertir: '',
+    Equipo: '',
+    Fuente: g.fuente || 'GoHighLevel',
+    Proveedor: '',
+    Formulario: '',
+    Etapa: g.estadoGHL,
+    Comentarios: `Oportunidad de GoHighLevel · Pipeline: ${g.pipelineGHL}.`,
+    estadoGHL: g.estadoGHL,
+    pipelineGHL: g.pipelineGHL,
+    personaEncargadaGHL: g.personaEncargadaGHL,
+  };
+}
+
 /**
  * Devuelve un RawLead sintético por cada contacto de HubSpot que NO tenga
  * ya un lead con el mismo teléfono o correo en `existingLeads` (los del

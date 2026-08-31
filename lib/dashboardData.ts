@@ -1,4 +1,5 @@
 import { getHubspotStatusMap } from './hubspot';
+import { getGhlRawLeads } from './ghl';
 import {
   getHubspotRawLeads,
   processLeads,
@@ -9,44 +10,58 @@ import {
   type LeadQualityHistoryChartPoint,
 } from './leadUtils';
 import { saveLeadQualitySummary, getLeadQualityHistory } from './leadQualityStorage';
+import { getSettings, type AppSettings } from './settingsStorage';
 import type { ProcessedLead } from './types';
 
 export interface DashboardData {
   leads: ProcessedLead[];
   hubspotLimit: number;
   leadQualityHistoryChart: { data: LeadQualityHistoryChartPoint[]; fuentes: string[] };
+  settings: AppSettings;
 }
 
 /**
- * Carga todo lo que necesita el dashboard: leads (100% HubSpot — Lausana ya
- * no usa Google Sheet ni GoHighLevel como fuente de leads), snapshot de
- * calidad guardado en el Sheet de STORAGE, e historial para la gráfica de
- * línea de tiempo.
+ * Carga todo lo que necesita el dashboard. La fuente de leads YA NO está
+ * fija en el código — se decide en vivo según settings.activeSource
+ * (editable desde Ajustes → Ajustes avanzados → Fuente de leads), leído de
+ * la pestaña Settings del Sheet de storage. Por default cae a HubSpot (el
+ * CRM que este cliente usa hoy) si nunca se tocó ese ajuste.
  *
  * Centralizado acá porque app/page.tsx y app/meta-ads/page.tsx necesitan
- * exactamente lo mismo (antes esta lógica estaba duplicada en los dos
- * archivos, letra por letra).
+ * exactamente lo mismo.
  *
  * @param logPrefix Prefijo para los console.error, para saber desde qué
  * página salió el error si algo falla (ej. 'page' o 'meta-ads/page').
  */
 export async function loadDashboardData(logPrefix: string): Promise<DashboardData> {
-  // Si HubSpot falla o tarda demasiado, no tumbamos el dashboard — se
-  // muestra vacío por esta vez en vez de un error 500.
-  const hubspotMap = await getHubspotStatusMap().catch((err) => {
-    console.error(`[${logPrefix}] Error al leer HubSpot, se muestra el dashboard sin leads por esta vez:`, err);
-    return { byPhone: new Map(), byEmail: new Map(), all: [], limit: 300 };
-  });
+  const settings = await getSettings();
 
-  // getHubspotRawLeads() arma un RawLead por cada contacto (Etapa vacía);
-  // mergeHubspotStatus() cruza esos mismos leads contra el MISMO mapa de
-  // HubSpot por teléfono/correo para rellenar etapaLeadCrm/estadoLeadCrm/
-  // propietarioCrm — como cada contacto tiene su propio teléfono/correo,
-  // siempre se empareja consigo mismo. Mismo patrón que ya usaba este
-  // archivo para enriquecer leads del Sheet, solo que ahora HubSpot es la
-  // fuente Y el enriquecimiento a la vez.
-  const rawLeads = getHubspotRawLeads(hubspotMap);
-  const leads = mergeHubspotStatus(processLeads(rawLeads), hubspotMap);
+  let leads: ProcessedLead[];
+  let hubspotLimit = 0;
+
+  if (settings.activeSource === 'ghl') {
+    const rawLeads = await getGhlRawLeads().catch((err) => {
+      console.error(`[${logPrefix}] Error al leer GoHighLevel, se muestra el dashboard sin leads por esta vez:`, err);
+      return [];
+    });
+    leads = processLeads(rawLeads);
+  } else {
+    // Si HubSpot falla o tarda demasiado, no tumbamos el dashboard — se
+    // muestra vacío por esta vez en vez de un error 500.
+    const hubspotMap = await getHubspotStatusMap().catch((err) => {
+      console.error(`[${logPrefix}] Error al leer HubSpot, se muestra el dashboard sin leads por esta vez:`, err);
+      return { byPhone: new Map(), byEmail: new Map(), all: [], limit: 300 };
+    });
+    hubspotLimit = hubspotMap.limit;
+
+    // getHubspotRawLeads() arma un RawLead por cada contacto (Etapa vacía);
+    // mergeHubspotStatus() cruza esos mismos leads contra el MISMO mapa de
+    // HubSpot por teléfono/correo para rellenar etapaLeadCrm/estadoLeadCrm/
+    // propietarioCrm — como cada contacto tiene su propio teléfono/correo,
+    // siempre se empareja consigo mismo.
+    const hubspotRawLeads = getHubspotRawLeads(hubspotMap);
+    leads = mergeHubspotStatus(processLeads(hubspotRawLeads), hubspotMap);
+  }
 
   // Snapshot de calidad de leads (por Fuente y por Campaña, según el
   // semáforo) — se guarda para que la generación de campañas lo use como
@@ -73,5 +88,5 @@ export async function loadDashboardData(logPrefix: string): Promise<DashboardDat
     console.error(`[${logPrefix}] Error al leer historial de calidad de leads:`, err);
   }
 
-  return { leads, hubspotLimit: hubspotMap.limit, leadQualityHistoryChart };
+  return { leads, hubspotLimit, leadQualityHistoryChart, settings };
 }

@@ -19,16 +19,16 @@ export default async function DashboardPage() {
   const displayName = settings.displayName || 'Lausana';
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground" style={settings.primaryColor ? ({ '--brand-color': settings.primaryColor } as CSSProperties) : undefined}>
-      <header className="flex shrink-0 flex-col justify-between gap-1 border-b border-border px-6 py-4 sm:flex-row sm:items-end">
+    <div className="flex h-screen flex-col overflow-hidden bg-zinc-950 text-zinc-100" style={settings.primaryColor ? ({ '--brand-color': settings.primaryColor } as CSSProperties) : undefined}>
+      <header className="flex shrink-0 flex-col justify-between gap-1 border-b border-zinc-800 px-6 py-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground" style={settings.primaryColor ? { color: settings.primaryColor } : undefined}>
+          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500" style={settings.primaryColor ? { color: settings.primaryColor } : undefined}>
             {displayName}
           </p>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Panel de Reportes</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-50">Panel de Reportes</h1>
         </div>
         <div className="flex items-center gap-4">
-          <p className="text-xs text-muted-foreground">Última actualización: {lastUpdated}</p>
+          <p className="text-xs text-zinc-500">Última actualización: {lastUpdated}</p>
         </div>
       </header>
 

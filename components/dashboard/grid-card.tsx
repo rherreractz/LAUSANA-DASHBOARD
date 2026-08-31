@@ -24,13 +24,13 @@ export function GridCard({
   return (
     <Card
       className={cn(
-        'flex h-full min-h-0 flex-col gap-0 overflow-hidden border-zinc-800 bg-zinc-900 py-0 shadow-none',
-        editMode && 'border-dashed border-zinc-600',
+        'flex h-full min-h-0 flex-col gap-0 overflow-hidden border-border bg-card py-0 shadow-none',
+        editMode && 'border-dashed border-muted-foreground/40',
         className,
       )}
     >
       {editMode && (
-        <div className="dashboard-drag-handle flex shrink-0 items-center justify-center gap-1 border-b border-dashed border-zinc-700 bg-zinc-800/50 py-1 text-zinc-500">
+        <div className="dashboard-drag-handle flex shrink-0 items-center justify-center gap-1 border-b border-dashed border-border bg-muted/50 py-1 text-muted-foreground">
           <GripVertical className="h-3 w-3" />
           <span className="text-[10px]">Arrastra para mover · Jala la esquina para redimensionar</span>
         </div>

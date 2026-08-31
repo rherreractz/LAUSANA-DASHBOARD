@@ -96,16 +96,16 @@ export function EditableChartCard({
         minHeight: 100,
         maxHeight: 600,
       }}
-      className={`flex min-h-0 flex-col rounded-xl border bg-zinc-900 transition-colors ${
+      className={`flex min-h-0 flex-col rounded-xl border bg-card transition-colors ${
         isDragOverTarget
           ? 'border-2 border-white shadow-[0_0_0_1px_rgba(255,255,255,0.3)]'
           : editMode
-            ? 'border-dashed border-zinc-600'
-            : 'border-zinc-800'
+            ? 'border-dashed border-muted-foreground/40'
+            : 'border-border'
       } ${editMode ? 'cursor-move' : ''} ${isDragging ? 'opacity-40' : ''}`}
     >
       {editMode && (
-        <div className="flex shrink-0 items-center justify-center gap-1 border-b border-dashed border-zinc-700 bg-zinc-800/50 py-1 text-zinc-500">
+        <div className="flex shrink-0 items-center justify-center gap-1 border-b border-dashed border-border bg-muted/50 py-1 text-muted-foreground">
           <GripVertical className="h-3 w-3" />
           <span className="text-[10px]">Arrastra para mover · Jala la esquina para redimensionar</span>
         </div>

@@ -239,7 +239,7 @@ export function DashboardShell({
         if (!ref.current) return null;
         try {
           // backgroundColor solo pinta el fondo del contenedor raíz — los
-          // divs internos de la gráfica (con clases bg-zinc-900, etc.) se
+          // divs internos de la gráfica (con clases bg-card, etc.) se
           // capturan tal cual con SU fondo oscuro original, tapando el
           // blanco. `style` aquí se aplica al clon justo antes de la
           // captura, forzando blanco de raíz para que nada oscuro se
@@ -282,10 +282,10 @@ export function DashboardShell({
       {/* Filtros */}
       <section className="flex shrink-0 flex-wrap items-center gap-2">
         <Select value={filters.campaign} onValueChange={(value) => setFilters((f) => ({ ...f, campaign: value || 'all' }))}>
-          <SelectTrigger className="h-9 min-w-[130px] flex-1 border-zinc-800 bg-zinc-900 text-sm text-zinc-200 sm:w-[180px] sm:flex-none">
+          <SelectTrigger className="h-9 min-w-[130px] flex-1 border-border bg-card text-sm text-foreground sm:w-[180px] sm:flex-none">
             <SelectValue placeholder="Campaña">{(value: string) => (value === 'all' ? 'Campaña' : value)}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
+          <SelectContent className="border-border bg-card text-foreground">
             <SelectItem value="all">Todas las campañas</SelectItem>
             {campaigns.map((campaign) => (
               <SelectItem key={campaign} value={campaign}>
@@ -296,12 +296,12 @@ export function DashboardShell({
         </Select>
 
         <Select value={filters.month} onValueChange={(value) => setFilters((f) => ({ ...f, month: value || 'all' }))}>
-          <SelectTrigger className="h-9 min-w-[110px] flex-1 border-zinc-800 bg-zinc-900 text-sm text-zinc-200 sm:w-[160px] sm:flex-none">
+          <SelectTrigger className="h-9 min-w-[110px] flex-1 border-border bg-card text-sm text-foreground sm:w-[160px] sm:flex-none">
             <SelectValue placeholder="Mes">
               {(value: string) => (value === 'all' ? 'Mes' : months.find((m) => m.value === value)?.label ?? value)}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
+          <SelectContent className="border-border bg-card text-foreground">
             <SelectItem value="all">Todos los meses</SelectItem>
             {months.map((month) => (
               <SelectItem key={month.value} value={month.value}>
@@ -313,10 +313,10 @@ export function DashboardShell({
 
         {/* --- Filtros nuevos: Equipo / Fuente / Proveedor / Etapa --- */}
         <Select value={filters.equipo} onValueChange={(value) => setFilters((f) => ({ ...f, equipo: value || 'all' }))}>
-          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-zinc-800 bg-zinc-900 text-sm text-zinc-200 sm:w-[150px] sm:flex-none">
+          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-border bg-card text-sm text-foreground sm:w-[150px] sm:flex-none">
             <SelectValue placeholder="Equipo">{(value: string) => (value === 'all' ? 'Equipo' : value)}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
+          <SelectContent className="border-border bg-card text-foreground">
             <SelectItem value="all">Todos los equipos</SelectItem>
             {equipos.map((equipo) => (
               <SelectItem key={equipo} value={equipo}>
@@ -327,10 +327,10 @@ export function DashboardShell({
         </Select>
 
         <Select value={filters.fuente} onValueChange={(value) => setFilters((f) => ({ ...f, fuente: value || 'all' }))}>
-          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-zinc-800 bg-zinc-900 text-sm text-zinc-200 sm:w-[150px] sm:flex-none">
+          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-border bg-card text-sm text-foreground sm:w-[150px] sm:flex-none">
             <SelectValue placeholder="Fuente">{(value: string) => (value === 'all' ? 'Fuente' : value)}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
+          <SelectContent className="border-border bg-card text-foreground">
             <SelectItem value="all">Todas las fuentes</SelectItem>
             {fuentes.map((fuente) => (
               <SelectItem key={fuente} value={fuente}>
@@ -341,10 +341,10 @@ export function DashboardShell({
         </Select>
 
         <Select value={filters.proveedor} onValueChange={(value) => setFilters((f) => ({ ...f, proveedor: value || 'all' }))}>
-          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-zinc-800 bg-zinc-900 text-sm text-zinc-200 sm:w-[150px] sm:flex-none">
+          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-border bg-card text-sm text-foreground sm:w-[150px] sm:flex-none">
             <SelectValue placeholder="Proveedor">{(value: string) => (value === 'all' ? 'Proveedor' : value)}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
+          <SelectContent className="border-border bg-card text-foreground">
             <SelectItem value="all">Todos los proveedores</SelectItem>
             {proveedores.map((proveedor) => (
               <SelectItem key={proveedor} value={proveedor}>
@@ -355,10 +355,10 @@ export function DashboardShell({
         </Select>
 
         <Select value={filters.etapa} onValueChange={(value) => setFilters((f) => ({ ...f, etapa: value || 'all' }))}>
-          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-zinc-800 bg-zinc-900 text-sm text-zinc-200 sm:w-[150px] sm:flex-none">
+          <SelectTrigger className="h-9 min-w-[120px] flex-1 border-border bg-card text-sm text-foreground sm:w-[150px] sm:flex-none">
             <SelectValue placeholder="Etapa">{(value: string) => (value === 'all' ? 'Etapa' : value)}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="border-zinc-800 bg-zinc-900 text-zinc-200">
+          <SelectContent className="border-border bg-card text-foreground">
             <SelectItem value="all">Todas las etapas</SelectItem>
             {etapas.map((etapa) => (
               <SelectItem key={etapa} value={etapa}>
@@ -372,22 +372,22 @@ export function DashboardShell({
           value={filters.status}
           onValueChange={(value) => setFilters((f) => ({ ...f, status: value as LeadFilters['status'] }))}
         >
-          <TabsList className="h-9 border border-zinc-800 bg-zinc-900">
+          <TabsList className="h-9 border border-border bg-card">
             <TabsTrigger
               value="all"
-              className="text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50"
+              className="text-xs text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground"
             >
               Todos
             </TabsTrigger>
             <TabsTrigger
               value="Válido"
-              className="text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50"
+              className="text-xs text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground"
             >
               Válidos
             </TabsTrigger>
             <TabsTrigger
               value="Duplicado"
-              className="text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50"
+              className="text-xs text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground"
             >
               Duplicados
             </TabsTrigger>
@@ -398,7 +398,7 @@ export function DashboardShell({
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 text-xs text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
+            className="h-9 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => setFilters(DEFAULT_LEAD_FILTERS)}
           >
             Limpiar filtros
@@ -407,35 +407,35 @@ export function DashboardShell({
 
         {/* Ventana rápida de tiempo — se suma al filtro de Mes, no lo reemplaza */}
         <Tabs value={filters.periodo} onValueChange={(value) => setFilters((f) => ({ ...f, periodo: value as LeadFilters['periodo'] }))}>
-          <TabsList className="h-9 border border-zinc-800 bg-zinc-900">
+          <TabsList className="h-9 border border-border bg-card">
             <TabsTrigger
               value="todos"
-              className="text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50"
+              className="text-xs text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground"
             >
               Todo
             </TabsTrigger>
             <TabsTrigger
               value="semana"
-              className="text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50"
+              className="text-xs text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground"
             >
               Por semana
             </TabsTrigger>
             <TabsTrigger
               value="mes"
-              className="text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50"
+              className="text-xs text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground"
             >
               Por mes
             </TabsTrigger>
             <TabsTrigger
               value="año"
-              className="text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50"
+              className="text-xs text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground"
             >
               Por año
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <span className="ml-auto text-xs text-zinc-500">
+        <span className="ml-auto text-xs text-muted-foreground">
           {filteredLeads.length} de {leads.length} leads
         </span>
       </section>
@@ -448,17 +448,17 @@ export function DashboardShell({
       <section ref={columnContainerRef} className="flex min-h-0 flex-1 gap-3">
         <div
           style={{ flexGrow: columnWeights[0], flexBasis: 0, minWidth: 0 }}
-          className="flex min-h-0 flex-col rounded-xl border border-zinc-800 bg-zinc-900"
+          className="flex min-h-0 flex-col rounded-xl border border-border bg-card"
         >
           <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-2 p-4 pb-2">
-            <CardTitle className="text-base font-medium text-zinc-50">Leads</CardTitle>
+            <CardTitle className="text-base font-medium text-foreground">Leads</CardTitle>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 disabled={isRefreshing}
                 onClick={handleRefresh}
-                className="h-8 gap-1.5 border-zinc-800 bg-zinc-900 text-xs text-zinc-200 hover:bg-zinc-800"
+                className="h-8 gap-1.5 border-border bg-card text-xs text-foreground hover:bg-muted"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 {isRefreshing ? 'Actualizando…' : 'Refrescar'}
@@ -468,7 +468,7 @@ export function DashboardShell({
                 size="sm"
                 disabled={isExporting || sortedLeads.length === 0}
                 onClick={handleExportPdf}
-                className="h-8 gap-1.5 border-zinc-800 bg-zinc-900 text-xs text-zinc-200 hover:bg-zinc-800"
+                className="h-8 gap-1.5 border-border bg-card text-xs text-foreground hover:bg-muted"
               >
                 <Download className="h-3.5 w-3.5" />
                 {isExporting ? 'Generando…' : 'Exportar PDF'}
@@ -494,7 +494,7 @@ export function DashboardShell({
               className={`h-7 gap-1.5 text-xs ${
                 chartEditMode
                   ? 'bg-[#53958B] text-zinc-950 hover:bg-[#53958B]/90'
-                  : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                  : 'border-border bg-card text-muted-foreground hover:bg-muted'
               }`}
             >
               <LayoutGrid className="h-3 w-3" />
@@ -505,7 +505,7 @@ export function DashboardShell({
                 variant="ghost"
                 size="sm"
                 onClick={resetChartLayout}
-                className="h-7 gap-1 text-xs text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
+                className="h-7 gap-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <RotateCcw className="h-3 w-3" />
                 Restablecer
@@ -522,12 +522,12 @@ export function DashboardShell({
                 content = (
                   <>
                     <div className="shrink-0 p-3 pb-2">
-                      <p className="mb-2 text-xs font-medium text-zinc-400">Leads por Día</p>
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">Leads por Día</p>
                       <div className="flex flex-wrap gap-1">
                         <button
                           onClick={() => toggleColor('Verde')}
                           className={`rounded-full border px-2 py-0.5 text-[10px] transition-opacity ${
-                            visibleColors.has('Verde') ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-zinc-800 text-zinc-600 opacity-50'
+                            visibleColors.has('Verde') ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'border-border text-muted-foreground opacity-50'
                           }`}
                         >
                           Verde
@@ -535,7 +535,7 @@ export function DashboardShell({
                         <button
                           onClick={() => toggleColor('Amarillo')}
                           className={`rounded-full border px-2 py-0.5 text-[10px] transition-opacity ${
-                            visibleColors.has('Amarillo') ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400' : 'border-zinc-800 text-zinc-600 opacity-50'
+                            visibleColors.has('Amarillo') ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400' : 'border-border text-muted-foreground opacity-50'
                           }`}
                         >
                           Amarillo
@@ -543,7 +543,7 @@ export function DashboardShell({
                         <button
                           onClick={() => toggleColor('Rojo')}
                           className={`rounded-full border px-2 py-0.5 text-[10px] transition-opacity ${
-                            visibleColors.has('Rojo') ? 'border-red-500/40 bg-red-500/10 text-red-400' : 'border-zinc-800 text-zinc-600 opacity-50'
+                            visibleColors.has('Rojo') ? 'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400' : 'border-border text-muted-foreground opacity-50'
                           }`}
                         >
                           Rojo
@@ -551,7 +551,7 @@ export function DashboardShell({
                         <button
                           onClick={() => toggleColor('SinClasificar')}
                           className={`rounded-full border px-2 py-0.5 text-[10px] transition-opacity ${
-                            visibleColors.has('SinClasificar') ? 'border-zinc-600 bg-zinc-700/30 text-zinc-300' : 'border-zinc-800 text-zinc-600 opacity-50'
+                            visibleColors.has('SinClasificar') ? 'border-muted-foreground/40 bg-muted text-muted-foreground' : 'border-border text-muted-foreground opacity-50'
                           }`}
                         >
                           Sin clasificar
@@ -567,7 +567,7 @@ export function DashboardShell({
                 content = (
                   <>
                     <div className="shrink-0 p-3 pb-0">
-                      <p className="text-xs font-medium text-zinc-400">Vivir vs Invertir</p>
+                      <p className="text-xs font-medium text-muted-foreground">Vivir vs Invertir</p>
                     </div>
                     <div ref={motivoChartRef} className="min-h-0 flex-1 p-2 pt-1">
                       <MotivoDonutChart data={motivoData} />
@@ -578,7 +578,7 @@ export function DashboardShell({
                 content = (
                   <>
                     <div className="shrink-0 p-3 pb-0">
-                      <p className="text-xs font-medium text-zinc-400">Presupuesto</p>
+                      <p className="text-xs font-medium text-muted-foreground">Presupuesto</p>
                     </div>
                     <div ref={budgetChartRef} className="min-h-0 flex-1 p-2 pt-1">
                       <BudgetBarChart data={budgetData} />
@@ -589,7 +589,7 @@ export function DashboardShell({
                 content = (
                   <>
                     <div className="shrink-0 p-3 pb-0">
-                      <p className="text-xs font-medium text-zinc-400">Calidad de Leads (histórico, % avanzó por Fuente)</p>
+                      <p className="text-xs font-medium text-muted-foreground">Calidad de Leads (histórico, % avanzó por Fuente)</p>
                     </div>
                     <div ref={historyChartRef} className="min-h-0 flex-1 p-2 pt-1">
                       <LeadQualityHistoryChart data={leadQualityHistory?.data ?? []} fuentes={leadQualityHistory?.fuentes ?? []} />
@@ -617,12 +617,12 @@ export function DashboardShell({
                       e.preventDefault();
                       handleChartDrop();
                     }}
-                    className={`flex min-h-0 flex-1 flex-col rounded-xl border bg-zinc-900 transition-colors ${
-                      chartEditMode ? 'cursor-move border-dashed border-zinc-600' : 'border-zinc-800'
+                    className={`flex min-h-0 flex-1 flex-col rounded-xl border bg-card transition-colors ${
+                      chartEditMode ? 'cursor-move border-dashed border-muted-foreground/40' : 'border-border'
                     } ${draggingId === chartId ? 'opacity-40' : ''}`}
                   >
                     {chartEditMode && (
-                      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-dashed border-zinc-700 bg-zinc-800/50 py-1 text-zinc-500">
+                      <div className="flex shrink-0 items-center justify-center gap-1 border-b border-dashed border-border bg-muted/50 py-1 text-muted-foreground">
                         <GripVertical className="h-3 w-3" />
                         <span className="text-[10px]">Arrastra para mover · Jala la línea de abajo para redimensionar</span>
                       </div>
@@ -643,22 +643,22 @@ export function DashboardShell({
 
       {/* Stats — franja compacta debajo de la tabla, reacciona a los filtros. Fija, sin redimensionar ni reordenar. */}
       <section className="grid shrink-0 grid-cols-3 gap-2">
-        <Card className="flex items-center justify-between border-zinc-800 bg-zinc-900 px-3 py-2.5 shadow-none">
-          <span className="text-xs font-medium text-zinc-400">Total</span>
-          <span className="text-lg font-semibold text-zinc-50">{filteredLeads.length}</span>
+        <Card className="flex items-center justify-between border-border bg-card px-3 py-2.5 shadow-none">
+          <span className="text-xs font-medium text-muted-foreground">Total</span>
+          <span className="text-lg font-semibold text-foreground">{filteredLeads.length}</span>
         </Card>
 
-        <Card className="flex items-center justify-between border-zinc-800 bg-zinc-900 px-3 py-2.5 shadow-none">
-          <span className="text-xs font-medium text-zinc-400">Duplicados</span>
-          <span className="text-lg font-semibold text-zinc-50">
+        <Card className="flex items-center justify-between border-border bg-card px-3 py-2.5 shadow-none">
+          <span className="text-xs font-medium text-muted-foreground">Duplicados</span>
+          <span className="text-lg font-semibold text-foreground">
             {duplicateLeads.length}
-            <span className="ml-1 text-xs font-normal text-zinc-500">({duplicateRate.toFixed(1)}%)</span>
+            <span className="ml-1 text-xs font-normal text-muted-foreground">({duplicateRate.toFixed(1)}%)</span>
           </span>
         </Card>
 
-        <Card className="flex items-center justify-between border-zinc-800 bg-zinc-900 px-3 py-2.5 shadow-none">
-          <span className="text-xs font-medium text-zinc-400">Hoy</span>
-          <span className="text-lg font-semibold text-zinc-50">{todayLeads.length}</span>
+        <Card className="flex items-center justify-between border-border bg-card px-3 py-2.5 shadow-none">
+          <span className="text-xs font-medium text-muted-foreground">Hoy</span>
+          <span className="text-lg font-semibold text-foreground">{todayLeads.length}</span>
         </Card>
       </section>
     </div>

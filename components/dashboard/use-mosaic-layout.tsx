@@ -128,14 +128,14 @@ export function MosaicDivider({
   if (axis === 'row') {
     return (
       <div onMouseDown={onMouseDown} className="group relative -my-1.5 flex h-3 shrink-0 cursor-row-resize items-center justify-center">
-        <div className="h-1 w-10 rounded-full bg-zinc-700 transition-colors group-hover:bg-white" />
+        <div className="h-1 w-10 rounded-full bg-muted transition-colors group-hover:bg-foreground" />
       </div>
     );
   }
 
   return (
     <div onMouseDown={onMouseDown} className="group relative -mx-1.5 hidden w-3 shrink-0 cursor-col-resize items-center justify-center lg:flex">
-      <div className="h-10 w-1 rounded-full bg-zinc-700 transition-colors group-hover:bg-white" />
+      <div className="h-10 w-1 rounded-full bg-muted transition-colors group-hover:bg-foreground" />
     </div>
   );
 }

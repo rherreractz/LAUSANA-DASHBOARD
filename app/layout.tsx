@@ -24,6 +24,9 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>
+        <div className="pointer-events-none fixed bottom-2 right-3 z-50 text-[10px] text-muted-foreground select-none">
+          v1.0 · Desarrollado por Neo
+        </div>
       </body>
     </html>
   )

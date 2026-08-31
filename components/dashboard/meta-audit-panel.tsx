@@ -42,20 +42,20 @@ function getNamedAccounts(): NamedAccount[] {
 function resultPillClassName(result: string): string {
   switch (result) {
     case 'PASS':
-      return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+      return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400';
     case 'WARNING':
-      return 'border-amber-500/30 bg-amber-500/10 text-amber-400';
+      return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400';
     case 'FAIL':
-      return 'border-red-500/30 bg-red-500/10 text-red-400';
+      return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400';
     default:
-      return 'border-zinc-700 bg-transparent text-zinc-500';
+      return 'border-border bg-transparent text-muted-foreground';
   }
 }
 
 function gradeClassName(grade: string): string {
-  if (grade === 'A' || grade === 'B') return 'text-emerald-400';
-  if (grade === 'C') return 'text-amber-400';
-  return 'text-red-400';
+  if (grade === 'A' || grade === 'B') return 'text-emerald-700 dark:text-emerald-400';
+  if (grade === 'C') return 'text-amber-700 dark:text-amber-400';
+  return 'text-red-600 dark:text-red-400';
 }
 
 export function MetaAuditPanel() {
@@ -150,13 +150,13 @@ export function MetaAuditPanel() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         {namedAccounts.length > 0 && (
           <div className="w-full sm:w-64">
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Cuenta publicitaria
             </label>
             <select
               value={selectedName}
               onChange={(e) => setSelectedName(e.target.value)}
-              className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-zinc-600"
+              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-ring"
             >
               {namedAccounts.map((acc) => (
                 <option key={acc.accountId} value={acc.name}>
@@ -170,14 +170,14 @@ export function MetaAuditPanel() {
 
         {(isManualEntry || namedAccounts.length === 0) && (
           <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Ad Account ID del cliente
             </label>
             <input
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
               placeholder="act_1234567890"
-              className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-zinc-600"
+              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-ring"
             />
           </div>
         )}
@@ -190,35 +190,35 @@ export function MetaAuditPanel() {
           {loading ? 'Auditando… (puede tardar ~30-60s)' : 'Correr auditoría de Meta Ads'}
         </Button>
 
-        {loadingCached && <span className="text-xs text-zinc-500">Buscando última auditoría guardada…</span>}
+        {loadingCached && <span className="text-xs text-muted-foreground">Buscando última auditoría guardada…</span>}
         {!loadingCached && resultGeneratedAt && (
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-muted-foreground">
             Última auditoría: {new Date(resultGeneratedAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
           </span>
         )}
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">{error}</div>
       )}
 
       {result && (
         <div className="flex flex-col gap-6">
           {/* Health Score */}
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-            <p className="text-xs uppercase tracking-wider text-zinc-500">Meta Ads Health Score</p>
+          <div className="rounded-lg border border-border bg-card p-6">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Meta Ads Health Score</p>
             <div className="mt-2 flex items-end gap-3">
-              <span className="text-5xl font-bold text-zinc-50">{Math.round(result.health_score)}</span>
-              <span className="pb-1 text-lg text-zinc-500">/100</span>
+              <span className="text-5xl font-bold text-foreground">{Math.round(result.health_score)}</span>
+              <span className="pb-1 text-lg text-muted-foreground">/100</span>
               <span className={`pb-1 text-3xl font-bold ${gradeClassName(result.grade)}`}>{result.grade}</span>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {Object.entries(result.category_scores).map(([key, cat]) => (
-                <div key={key} className="rounded-md border border-zinc-800 p-3">
-                  <p className="text-xs text-zinc-500">{CATEGORY_LABELS[key] ?? key}</p>
-                  <p className="text-lg font-semibold text-zinc-100">{Math.round(cat.score)}/100</p>
-                  <p className="text-xs text-zinc-600">peso {Math.round(cat.weight * 100)}%</p>
+                <div key={key} className="rounded-md border border-border p-3">
+                  <p className="text-xs text-muted-foreground">{CATEGORY_LABELS[key] ?? key}</p>
+                  <p className="text-lg font-semibold text-foreground">{Math.round(cat.score)}/100</p>
+                  <p className="text-xs text-muted-foreground">peso {Math.round(cat.weight * 100)}%</p>
                 </div>
               ))}
             </div>
@@ -227,15 +227,15 @@ export function MetaAuditPanel() {
           {/* Critical issues */}
           {result.critical_issues && result.critical_issues.length > 0 && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-6">
-              <p className="mb-3 text-sm font-semibold text-red-400">
+              <p className="mb-3 text-sm font-semibold text-red-600 dark:text-red-400">
                 Problemas críticos ({result.critical_issues.length})
               </p>
               <ul className="flex flex-col gap-2">
                 {result.critical_issues.map((ci) => (
-                  <li key={ci.check_id} className="text-sm text-zinc-300">
-                    <span className="font-mono text-red-400">{ci.check_id}</span> — {ci.blocker_reason}
+                  <li key={ci.check_id} className="text-sm text-muted-foreground">
+                    <span className="font-mono text-red-600 dark:text-red-400">{ci.check_id}</span> — {ci.blocker_reason}
                     {ci.estimated_revenue_at_risk && (
-                      <span className="text-zinc-500"> ({ci.estimated_revenue_at_risk})</span>
+                      <span className="text-muted-foreground"> ({ci.estimated_revenue_at_risk})</span>
                     )}
                   </li>
                 ))}
@@ -245,16 +245,16 @@ export function MetaAuditPanel() {
 
           {/* Quick wins */}
           {result.quick_wins && result.quick_wins.length > 0 && (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-              <p className="mb-3 text-sm font-semibold text-zinc-100">Quick Wins ({result.quick_wins.length})</p>
+            <div className="rounded-lg border border-border bg-card p-6">
+              <p className="mb-3 text-sm font-semibold text-foreground">Quick Wins ({result.quick_wins.length})</p>
               <ul className="flex flex-col gap-2">
                 {result.quick_wins.map((qw) => (
-                  <li key={qw.check_id} className="flex items-start justify-between gap-4 text-sm text-zinc-300">
+                  <li key={qw.check_id} className="flex items-start justify-between gap-4 text-sm text-muted-foreground">
                     <span>
-                      <span className="font-mono text-zinc-500">{qw.check_id}</span> — {qw.action}
+                      <span className="font-mono text-muted-foreground">{qw.check_id}</span> — {qw.action}
                     </span>
                     {qw.effort_minutes != null && (
-                      <span className="whitespace-nowrap text-xs text-zinc-500">{qw.effort_minutes} min</span>
+                      <span className="whitespace-nowrap text-xs text-muted-foreground">{qw.effort_minutes} min</span>
                     )}
                   </li>
                 ))}
@@ -263,9 +263,9 @@ export function MetaAuditPanel() {
           )}
 
           {/* Todos los checks */}
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-lg border border-border bg-card p-6">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-zinc-100">Checks ({result.checks.length} evaluados)</p>
+              <p className="text-sm font-semibold text-foreground">Checks ({result.checks.length} evaluados)</p>
               <div className="flex gap-1">
                 {(['all', 'fail', 'warning'] as const).map((f) => (
                   <button
@@ -273,8 +273,8 @@ export function MetaAuditPanel() {
                     onClick={() => setFilter(f)}
                     className={`rounded-md border px-2 py-1 text-xs ${
                       filter === f
-                        ? 'border-zinc-600 bg-zinc-800 text-zinc-100'
-                        : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                        ? 'border-muted-foreground/40 bg-muted text-foreground'
+                        : 'border-border text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     {f === 'all' ? 'Todos' : f === 'fail' ? 'Fail' : 'Warning'}
@@ -284,17 +284,17 @@ export function MetaAuditPanel() {
             </div>
             <div className="flex flex-col gap-3">
               {visibleChecks.map((check) => (
-                <div key={check.id} className="flex flex-col gap-1 border-b border-zinc-800 pb-3 last:border-0">
+                <div key={check.id} className="flex flex-col gap-1 border-b border-border pb-3 last:border-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-zinc-500">{check.id}</span>
-                    <span className="text-sm text-zinc-200">{check.name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{check.id}</span>
+                    <span className="text-sm text-foreground">{check.name}</span>
                     <Badge variant="outline" className={resultPillClassName(check.result)}>
                       {check.result}
                     </Badge>
                   </div>
-                  {check.finding && <p className="text-xs text-zinc-500">{check.finding}</p>}
+                  {check.finding && <p className="text-xs text-muted-foreground">{check.finding}</p>}
                   {check.recommendation && check.result !== 'PASS' && (
-                    <p className="text-xs text-zinc-400">→ {check.recommendation}</p>
+                    <p className="text-xs text-muted-foreground">→ {check.recommendation}</p>
                   )}
                 </div>
               ))}
@@ -302,8 +302,8 @@ export function MetaAuditPanel() {
           </div>
 
           {result.notes && (
-            <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-4 text-xs text-zinc-500">
-              <span className="font-medium text-zinc-400">Notas: </span>
+            <div className="rounded-md border border-border bg-muted/50 p-4 text-xs text-muted-foreground">
+              <span className="font-medium text-muted-foreground">Notas: </span>
               {result.notes}
             </div>
           )}
