@@ -19,7 +19,16 @@ const GRAPH_BASE = 'https://graph.facebook.com';
  * al type-checker sin cambiar nada en tiempo de ejecución.
  */
 function bufferToArrayBuffer(buffer: Buffer): ArrayBuffer {
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+  const backing = buffer.buffer as ArrayBuffer;
+  // `Buffer.from(arrayBuffer)` (lo que usa la descarga de Drive) crea una
+  // vista SIN copiar: en ese caso la vista cubre todo el ArrayBuffer y se
+  // puede devolver tal cual, sin duplicar en memoria — importante con
+  // videos de ~170 MB en un servidor con poca RAM. Solo se copia cuando el
+  // Buffer es un trozo de un pool compartido más grande.
+  if (buffer.byteOffset === 0 && buffer.byteLength === backing.byteLength) {
+    return backing;
+  }
+  return backing.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
 }
 
 /**
@@ -83,15 +92,12 @@ async function safeParseJson(res: Response): Promise<any> {
 function graphErrorFromParsed(path: string, res: Response, data: any): GraphError {
   if (data?.__parseError) {
     console.error(`[metaCreative] POST ${path} devolvió una respuesta no-JSON (status ${data.__status}):`, data.__raw);
-    return {
-      _error: {
-        status: data.__status,
-        message: data.__raw
-          ? `Meta devolvió una respuesta inesperada (no-JSON, HTTP ${data.__status}): ${data.__raw}`
-          : `Meta devolvió una respuesta vacía (HTTP ${data.__status}) — probablemente un hipo de red o timeout, intenta de nuevo.`,
-        body: data.__raw,
-      },
-    };
+    const message = data.__raw
+      ? `Meta devolvió una respuesta inesperada (no-JSON, HTTP ${data.__status}): ${data.__raw}`
+      : data.__status === 413
+        ? `Meta rechazó el archivo por tamaño (HTTP 413) — es demasiado grande para subirse en un solo request. Los videos grandes deben ir por partes.`
+        : `Meta devolvió una respuesta vacía (HTTP ${data.__status}) — probablemente un hipo de red o timeout, intenta de nuevo.`;
+    return { _error: { status: data.__status, message, body: data.__raw } };
   }
   const err = data?.error ?? {};
   const detailedMessage = [err.error_user_title, err.error_user_msg, err.message, err.error_subcode ? `(subcode ${err.error_subcode})` : null]
@@ -280,6 +286,117 @@ export interface CreateVideoAdInput {
 }
 
 /**
+ * `/advideos` devuelve HTTP 413 si un video "grande" se manda entero en un
+ * solo POST multipart. El umbral real depende del borde de la API de Meta
+ * (no está documentado con precisión), así que cualquier cosa por encima
+ * de este tamaño se sube por partes con el protocolo start/transfer/finish.
+ * Los videos chicos siguen yendo en un solo request, que es más rápido.
+ */
+const VIDEO_SINGLE_SHOT_MAX_BYTES = 8 * 1024 * 1024; // 8 MiB
+
+async function videoSourceToBytes(
+  source: VideoSource,
+): Promise<{ bytes: ArrayBuffer; filename: string; mimeType: string }> {
+  if (source.kind === 'file') {
+    return {
+      bytes: await source.file.arrayBuffer(),
+      filename: source.file.name || 'video.mp4',
+      mimeType: source.file.type || 'video/mp4',
+    };
+  }
+  return {
+    bytes: bufferToArrayBuffer(source.buffer),
+    filename: source.filename || 'video.mp4',
+    mimeType: source.mimeType || 'video/mp4',
+  };
+}
+
+/**
+ * Sube un video al Ad Account y devuelve su video_id. Para archivos por
+ * debajo de VIDEO_SINGLE_SHOT_MAX_BYTES hace un POST directo; para los
+ * grandes usa el protocolo por partes de Meta (upload_phase
+ * start/transfer/finish), que es el que evita el HTTP 413 que devuelve
+ * /advideos cuando el archivo entero va en un solo request.
+ */
+async function uploadAdVideo(
+  accountId: string,
+  source: VideoSource,
+  token: string,
+  apiVersion: string,
+): Promise<string> {
+  const { bytes, filename, mimeType } = await videoSourceToBytes(source);
+  const path = `${accountId}/advideos`;
+
+  // --- Camino simple: archivo chico, un solo POST ---
+  if (bytes.byteLength <= VIDEO_SINGLE_SHOT_MAX_BYTES) {
+    const form = new FormData();
+    form.set('source', new Blob([bytes], { type: mimeType }), filename);
+    const res = await graphPostForm(path, form, token, apiVersion);
+    if (isGraphError(res)) {
+      throw new Error(`No se pudo subir el video a Meta: ${res._error.message}`);
+    }
+    if (!res.id) throw new Error('Meta no devolvió un ID de video tras la subida.');
+    return String(res.id);
+  }
+
+  // --- Camino por partes: archivo grande ---
+  // 1. start — Meta responde con la sesión y el primer rango de bytes a mandar.
+  const startForm = new FormData();
+  startForm.set('upload_phase', 'start');
+  startForm.set('file_size', String(bytes.byteLength));
+  const start = await graphPostForm(path, startForm, token, apiVersion);
+  if (isGraphError(start)) {
+    throw new Error(`No se pudo iniciar la subida por partes del video: ${start._error.message}`);
+  }
+
+  const uploadSessionId: string | undefined = start.upload_session_id;
+  const startedVideoId: string | undefined = start.video_id;
+  if (!uploadSessionId || !startedVideoId) {
+    throw new Error('Meta no devolvió upload_session_id / video_id al iniciar la subida por partes.');
+  }
+
+  let startOffset = Number(start.start_offset ?? 0);
+  let endOffset = Number(start.end_offset ?? 0);
+
+  // 2. transfer — se manda el trozo del rango que Meta pide; su respuesta
+  //    trae el siguiente rango. Termina cuando start alcanza a end.
+  while (startOffset < endOffset) {
+    const chunk = bytes.slice(startOffset, endOffset);
+    const transferForm = new FormData();
+    transferForm.set('upload_phase', 'transfer');
+    transferForm.set('upload_session_id', uploadSessionId);
+    transferForm.set('start_offset', String(startOffset));
+    transferForm.set('video_file_chunk', new Blob([chunk], { type: mimeType }), filename);
+
+    const transfer = await graphPostForm(path, transferForm, token, apiVersion);
+    if (isGraphError(transfer)) {
+      throw new Error(
+        `Falló la subida por partes del video en el byte ${startOffset}/${bytes.byteLength}: ${transfer._error.message}`,
+      );
+    }
+
+    const nextStart = Number(transfer.start_offset);
+    const nextEnd = Number(transfer.end_offset);
+    if (!Number.isFinite(nextStart) || !Number.isFinite(nextEnd) || nextStart <= startOffset) {
+      throw new Error('Meta no avanzó el offset durante la subida por partes del video — se aborta para no quedar en bucle infinito.');
+    }
+    startOffset = nextStart;
+    endOffset = nextEnd;
+  }
+
+  // 3. finish — cierra la sesión; a partir de aquí Meta procesa el video.
+  const finishForm = new FormData();
+  finishForm.set('upload_phase', 'finish');
+  finishForm.set('upload_session_id', uploadSessionId);
+  const finish = await graphPostForm(path, finishForm, token, apiVersion);
+  if (isGraphError(finish)) {
+    throw new Error(`No se pudo finalizar la subida por partes del video: ${finish._error.message}`);
+  }
+
+  return String(startedVideoId);
+}
+
+/**
  * Sube el video, espera a que Meta lo termine de procesar (es asíncrono —
  * puede tardar de segundos a un par de minutos según duración/peso), y
  * arma el Ad final. Si no termina de procesar dentro de maxWaitMs, avisa
@@ -292,24 +409,9 @@ export async function createPausedAdWithVideo(input: CreateVideoAdInput): Promis
   const apiVersion = process.env.META_API_VERSION || 'v22.0';
   const maxWaitMs = input.maxWaitMs ?? 45000;
 
-  // 1. Subir el video.
-  const videoForm = new FormData();
-  if (input.video.kind === 'file') {
-    videoForm.set('source', input.video.file, input.video.file.name);
-  } else {
-    const blob = new Blob([bufferToArrayBuffer(input.video.buffer)], { type: input.video.mimeType });
-    videoForm.set('source', blob, input.video.filename);
-  }
-
-  const uploadResult = await graphPostForm(`${input.accountId}/advideos`, videoForm, input.token, apiVersion);
-  if (isGraphError(uploadResult)) {
-    throw new Error(`No se pudo subir el video a Meta: ${uploadResult._error.message}`);
-  }
-
-  const videoId: string | undefined = uploadResult.id;
-  if (!videoId) {
-    throw new Error('Meta no devolvió un ID de video tras la subida.');
-  }
+  // 1. Subir el video (por partes si supera VIDEO_SINGLE_SHOT_MAX_BYTES —
+  //    /advideos devuelve 413 si un archivo grande va entero en un POST).
+  const videoId = await uploadAdVideo(input.accountId, input.video, input.token, apiVersion);
 
   // 2. Esperar a que termine de procesar (polling).
   const start = Date.now();

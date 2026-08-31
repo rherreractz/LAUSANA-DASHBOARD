@@ -240,7 +240,7 @@ export function mergeHubspotStatus(leads: ProcessedLead[], hubspotMap: HubspotSt
   });
 
   console.log(
-    `[hubspot] Cruce Sheet <-> HubSpot: ${matched} de ${leads.length} leads del Sheet encontraron su contacto en HubSpot (de ${hubspotMap.byPhone.size} tel. / ${hubspotMap.byEmail.size} correos indexados).`,
+    `[hubspot] Cruce con HubSpot: ${matched} de ${leads.length} leads del Sheet encontraron su contacto en HubSpot (de ${hubspotMap.byPhone.size} tel. / ${hubspotMap.byEmail.size} correos indexados).`,
   );
 
   return result;

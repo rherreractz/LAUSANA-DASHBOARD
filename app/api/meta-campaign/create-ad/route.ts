@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createPausedAdWithImage, createPausedAdWithVideo } from '@/lib/metaCreative';
 import { findLeadFormByName } from '@/lib/metaLeadForms';
 
-export const maxDuration = 60;
+// Un video de Meta puede pesar hasta ~170 MB; su subida por partes más la
+// espera de procesamiento no cabe en 60s.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
           ctaText,
           adName,
           leadFormId,
+          maxWaitMs: 180000,
         })
       : await createPausedAdWithImage({
           accountId,

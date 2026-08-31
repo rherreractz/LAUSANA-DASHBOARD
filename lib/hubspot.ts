@@ -149,14 +149,13 @@ async function fetchPropertyLabelMap(accessToken: string, propertyName: string):
 }
 
 /**
- * Punto de entrada que usa el resto del proyecto. Se llama directo (sin
- * unstable_cache) porque el caché de datos de Next.js tiene un límite de
- * 2MB por entrada, y aquí podemos traer varios cientos de contactos con
- * bastantes propiedades cada uno. El caché lo da `export const revalidate
- * = 60` en app/page.tsx (caché de la página completa), así que en
- * producción esto igual no se recalcula en cada visita.
+ * Versión SIN caché — hace la búsqueda completa de contactos contra la
+ * Search API de HubSpot (paginada en bloques de 100). Cada llamada aquí
+ * es varias peticiones seguidas a HubSpot, así que puede disparar 429
+ * "secondly limit" si se invoca en cada carga del dashboard. Para el uso
+ * normal usa getHubspotStatusMap() de abajo, que cachea el resultado.
  */
-export async function getHubspotStatusMap(overrideLimit?: number): Promise<HubspotStatusMap> {
+async function getHubspotStatusMapUncached(overrideLimit?: number): Promise<HubspotStatusMap> {
   const { HUBSPOT_ACCESS_TOKEN, HUBSPOT_LEAD_STAGE_PROPERTY } = process.env;
 
   if (!HUBSPOT_ACCESS_TOKEN) {
@@ -285,4 +284,61 @@ export async function getHubspotStatusMap(overrideLimit?: number): Promise<Hubsp
   console.log(`[hubspot] Contactos obtenidos de HubSpot: ${all.length} (límite configurado: ${totalLimit})`);
 
   return { byPhone, byEmail, all, limit: totalLimit };
+}
+
+/**
+ * CACHÉ EN MEMORIA — sin esto, cada carga del dashboard disparaba una
+ * búsqueda completa de contactos contra HubSpot (varias llamadas seguidas
+ * a la Search API), lo que causaba errores 429 "secondly limit" con dos
+ * pestañas abiertas o refrescos rápidos. Con esto, solo la primera visita
+ * (o la primera después de que expire el caché) paga ese costo — el resto
+ * se sirve al instante desde memoria.
+ *
+ * Vive mientras la función serverless siga "caliente" (se reutiliza la
+ * misma instancia entre requests seguidos); en un cold start se vuelve a
+ * llenar solo. Mismo patrón que lib/ghl.ts de vtower.
+ */
+const HUBSPOT_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutos
+
+let hubspotCache: { data: HubspotStatusMap; fetchedAt: number } | null = null;
+let hubspotCacheInFlight: Promise<HubspotStatusMap> | null = null;
+
+/**
+ * Punto de entrada que usa el resto del proyecto.
+ *
+ * - Con `overrideLimit` (lo usa /api/leads para "Cargar más"): va directo
+ *   a la versión sin caché, porque pide un universo de contactos distinto
+ *   al de la carga default y no debe contaminar ni leer el caché.
+ * - Sin `overrideLimit` (la carga default del dashboard): cachea el
+ *   resultado en memoria con TTL de 3 min y deduplica llamadas
+ *   simultáneas con un flag "in-flight".
+ */
+export async function getHubspotStatusMap(overrideLimit?: number): Promise<HubspotStatusMap> {
+  if (Number.isFinite(overrideLimit) && (overrideLimit as number) > 0) {
+    return getHubspotStatusMapUncached(overrideLimit);
+  }
+
+  const now = Date.now();
+
+  if (hubspotCache && now - hubspotCache.fetchedAt < HUBSPOT_CACHE_TTL_MS) {
+    return hubspotCache.data;
+  }
+
+  // Si ya hay un refresh en curso (dos requests casi al mismo tiempo con
+  // el caché vencido), que ambas esperen la MISMA llamada en vez de
+  // disparar la búsqueda completa dos veces por separado.
+  if (hubspotCacheInFlight) {
+    return hubspotCacheInFlight;
+  }
+
+  hubspotCacheInFlight = getHubspotStatusMapUncached()
+    .then((data) => {
+      hubspotCache = { data, fetchedAt: Date.now() };
+      return data;
+    })
+    .finally(() => {
+      hubspotCacheInFlight = null;
+    });
+
+  return hubspotCacheInFlight;
 }

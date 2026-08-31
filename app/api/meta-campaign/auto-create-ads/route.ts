@@ -5,7 +5,9 @@ import { createPausedAdWithImage, createPausedAdWithVideo } from '@/lib/metaCrea
 import { findLeadFormByName } from '@/lib/metaLeadForms';
 import type { AdCopyVariant } from '@/lib/metaCampaignGenerator';
 
-export const maxDuration = 60;
+// Un video de Meta puede pesar hasta ~170 MB; su subida por partes más la
+// espera de procesamiento no cabe en 60s, y aquí se procesan varias variantes.
+export const maxDuration = 300;
 
 interface AutoCreateAdsBody {
   accountId: string;
@@ -62,8 +64,16 @@ export async function POST(req: NextRequest) {
 
     const chosenImageIds = await pickImagesForVariants(adCopyVariants, images, campaignContext || campaignName);
 
-    const results = await Promise.allSettled(
-      adCopyVariants.map(async (variant, index) => {
+    // Se procesa una variante a la vez (no en paralelo): un video de Meta
+    // puede pesar hasta ~170 MB y el servidor tiene poca RAM — tener 2-3
+    // buffers de ese tamaño vivos al mismo tiempo lo tumba. En secuencia,
+    // el buffer de cada variante queda libre para el GC antes de bajar el
+    // siguiente. Tarda más, pero es una acción de admin y los ads se crean
+    // en PAUSED, así que la latencia no importa.
+    const summary: Array<Record<string, unknown>> = [];
+    for (let index = 0; index < adCopyVariants.length; index++) {
+      const variant = adCopyVariants[index];
+      try {
         const imageId = chosenImageIds[index];
         if (!imageId) throw new Error('No se eligió ninguna imagen para esta variante.');
 
@@ -85,7 +95,7 @@ export async function POST(req: NextRequest) {
                 ctaText: variant.cta,
                 adName: `${campaignName} — Variante ${index + 1}`,
                 leadFormId,
-                maxWaitMs: 30000,
+                maxWaitMs: 180000,
               })
             : await createPausedAdWithImage({
                 accountId,
@@ -101,13 +111,11 @@ export async function POST(req: NextRequest) {
                 leadFormId,
               });
 
-        return { variantIndex: index, imageName: image?.name ?? imageId, mediaType: image?.mediaType ?? 'image', ...result };
-      }),
-    );
-
-    const summary = results.map((r, i) =>
-      r.status === 'fulfilled' ? { ok: true, ...r.value } : { ok: false, variantIndex: i, error: r.reason instanceof Error ? r.reason.message : String(r.reason) },
-    );
+        summary.push({ ok: true, variantIndex: index, imageName: image?.name ?? imageId, mediaType: image?.mediaType ?? 'image', ...result });
+      } catch (err) {
+        summary.push({ ok: false, variantIndex: index, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
 
     return NextResponse.json({ summary });
   } catch (error) {
