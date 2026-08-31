@@ -378,44 +378,57 @@ export function classifyGhlStageNumber(stageName: string): 'Rojo' | 'Amarillo' |
 }
 
 /**
- * Clasifica el texto de una etapa/estado en un color de semáforo, por
- * COINCIDENCIA DE PALABRA CLAVE (no exacta) — porque los valores reales que
- * llegan de HubSpot/Sheet varían bastante ("No califica", "Primer contacto
- * sin respuesta", etc.) y casi nunca coinciden letra por letra con una
- * lista fija. El orden de los checks importa: los más específicos van
- * primero, para que por ejemplo "no da cita" no termine cayendo en la regla
- * genérica de "cita", o "primer contacto sin respuesta" no caiga en la de
- * "primer contacto" a secas.
+ * Mapa FIJO de las 13 opciones reales de "Estado del lead" (hs_lead_status)
+ * de Lausana -> color de semáforo, confirmado con el equipo (ago-2026).
+ * Es la ÚNICA propiedad que usan para dar seguimiento a leads (no hay una
+ * "etapa" separada) — por eso HUBSPOT_LEAD_STAGE_PROPERTY debe apuntar a
+ * "hs_lead_status" en el .env de Lausana.
+ *
+ * "Lead de Broker", "Broker" y "Proveedor o N/A" quedan EXCLUIDOS a
+ * propósito (retornan null, igual que un valor sin mapear) — no son
+ * compradores potenciales reales, así que no deben contar ni como avance
+ * ni como descarte en el semáforo.
+ *
+ * Coincidencia por INCLUYE (no exacta) porque las etiquetas de HubSpot
+ * traen emojis que pueden variar de renderizado ("Contactado ⏳" vs
+ * "Contactado" a secas) — el orden de los checks importa: los más
+ * específicos van primero, para que "Contactado sin respuesta" no caiga
+ * en la regla genérica de "Contactado en espera", por ejemplo.
  */
 function classifyEtapaColor(etapaRaw: string): 'Rojo' | 'Amarillo' | 'Verde' | null {
   const v = etapaRaw.trim().toLowerCase();
   if (!v) return null;
 
+  // --- Excluidos: no son compradores potenciales, no cuentan ---
+  if (v.includes('lead de broker')) return null;
+  if (v.includes('broker')) return null; // "Broker" a secas (ya se descartó "lead de broker" arriba)
+  if (v.includes('proveedor')) return null;
+
   // --- Rojo: descartado / no avanza ---
+  if (v.includes('contactado') && v.includes('❌')) return 'Rojo'; // "Contactado ❌" = sin respuesta
+  if (v.includes('no quiere info')) return 'Rojo';
+  if (v.includes('perdido')) return 'Rojo';
   if (v.includes('no califica')) return 'Rojo';
-  if (v.includes('inválido') || v.includes('invalido')) return 'Rojo';
-  if (v.includes('no responde')) return 'Rojo';
-  if (v.includes('no da cita')) return 'Rojo';
 
   // --- Amarillo: todavía pendiente / sin resolver ---
-  if (v.includes('sin respuesta')) return 'Amarillo'; // ej. "Primer contacto sin respuesta"
-  if (v.includes('registro')) return 'Amarillo';
+  if (v.includes('contactado') && v.includes('⏳')) return 'Amarillo'; // "Contactado ⏳" = en espera
+  if (v.includes('diálogo') || v.includes('dialogo')) return 'Amarillo'; // "Diálogo - Activo"
+  if (v.includes('nuevo')) return 'Amarillo';
 
-  // --- Verde: ya hubo avance/interacción real ---
-  if (v.includes('contacto')) return 'Verde'; // "Contacto", "Primer contacto" (sin "sin respuesta", ya se descartó arriba)
-  if (v.includes('cita')) return 'Verde'; // "Cita" (ya se descartó "no da cita" arriba)
-  if (v.includes('visita')) return 'Verde';
-  if (v.includes('informes')) return 'Verde';
-  if (v.includes('negocio')) return 'Verde';
+  // --- Verde: ya hubo avance real hacia el cierre ---
+  if (v.includes('agendar cita')) return 'Verde';
+  if (v.includes('negociación') || v.includes('negociacion')) return 'Verde';
+  if (v.includes('en cierre')) return 'Verde';
 
   return null;
 }
 
 /**
- * Punto único de verdad para el semáforo de un lead: si tiene match en
- * GoHighLevel, se clasifica por el NÚMERO de su etapa GHL (más confiable —
- * ver classifyGhlStageNumber). Si no hay dato de GHL para ese lead, cae al
- * método anterior por palabra clave sobre la Etapa de HubSpot/Sheet.
+ * Punto único de verdad para el semáforo de un lead. Lausana no usa GHL
+ * (a diferencia de Live), así que lead.estadoGHL nunca se llena y esta
+ * función siempre cae directo a classifyEtapaColor() sobre "Estado del
+ * lead" (hs_lead_status) — se deja la rama de GHL sin borrar por si algún
+ * día se vuelve a necesitar, es inofensiva mientras nunca haya dato ahí.
  */
 export function getSemaforoColor(lead: ProcessedLead): 'Rojo' | 'Amarillo' | 'Verde' | null {
   if (lead.estadoGHL) {

@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLeads } from '@/lib/googleSheets';
 import { getHubspotStatusMap } from '@/lib/hubspot';
-import { processLeads, mergeHubspotStatus } from '@/lib/leadUtils';
+import { getHubspotRawLeads, processLeads, mergeHubspotStatus } from '@/lib/leadUtils';
 
 /**
- * Usado por el botón "Cargar más leads" del dashboard: repite la misma
- * combinación Sheet + HubSpot de app/page.tsx, pero permite pedir un límite
- * de contactos de HubSpot más alto que el default (?hubspotLimit=500). Los
- * contactos que existen SOLO en HubSpot ya no se agregan como leads nuevos.
+ * Usado por el botón "Cargar más leads" del dashboard: permite pedir un
+ * límite de contactos de HubSpot más alto que el default
+ * (?hubspotLimit=500). Lausana usa HubSpot como fuente única (ya no hay
+ * Google Sheet fuente que combinar).
  */
 export async function GET(request: NextRequest) {
   const hubspotLimitParam = Number(request.nextUrl.searchParams.get('hubspotLimit'));
   const hubspotLimit = Number.isFinite(hubspotLimitParam) && hubspotLimitParam > 0 ? hubspotLimitParam : undefined;
 
-  const [rawLeads, hubspotMap] = await Promise.all([getLeads(), getHubspotStatusMap(hubspotLimit)]);
-
+  const hubspotMap = await getHubspotStatusMap(hubspotLimit);
+  const rawLeads = getHubspotRawLeads(hubspotMap);
   const leads = mergeHubspotStatus(processLeads(rawLeads), hubspotMap);
 
   // Si HubSpot devolvió menos contactos que el límite pedido, ya no quedan
