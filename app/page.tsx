@@ -7,7 +7,7 @@ export const revalidate = 60;
 export default async function DashboardPage() {
   // Server Component -> las credenciales de HubSpot nunca se envían al
   // cliente. Lausana usa HubSpot como fuente ÚNICA de leads (a diferencia
-  // de Live: no hay Google Sheet fuente ni GoHighLevel).
+  // del panel anterior: no hay Google Sheet fuente ni GoHighLevel).
   const { leads, hubspotLimit, leadQualityHistoryChart } = await loadDashboardData('page');
 
   const lastUpdated = new Date().toLocaleString('es-MX', {

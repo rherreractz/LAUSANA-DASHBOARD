@@ -425,7 +425,7 @@ function classifyEtapaColor(etapaRaw: string): 'Rojo' | 'Amarillo' | 'Verde' | n
 
 /**
  * Punto único de verdad para el semáforo de un lead. Lausana no usa GHL
- * (a diferencia de Live), así que lead.estadoGHL nunca se llena y esta
+ * (a diferencia del panel anterior), así que lead.estadoGHL nunca se llena y esta
  * función siempre cae directo a classifyEtapaColor() sobre "Estado del
  * lead" (hs_lead_status) — se deja la rama de GHL sin borrar por si algún
  * día se vuelve a necesitar, es inofensiva mientras nunca haya dato ahí.

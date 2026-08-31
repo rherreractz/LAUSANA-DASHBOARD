@@ -21,7 +21,7 @@ export const maxDuration = 60;
  * META_WEEKLY_CAMPAIGN_ACCOUNTS='[
  *   {
  *     "accountId": "act_1586604569106474",
- *     "businessDescription": "Desarrollo residencial Live Neo en Cancún, departamentos desde $2.5 MDP",
+ *     "businessDescription": "Desarrollo residencial Lausana Neo en Cancún, departamentos desde $2.5 MDP",
  *     "targetDescription": "Inversionistas y compradores de segunda vivienda, 30-55 años, interesados en bienes raíces en el Caribe mexicano",
  *     "dailyBudgetMXN": 300,
  *     "pageId": "100041452645865"

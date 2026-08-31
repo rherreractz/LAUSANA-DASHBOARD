@@ -10,7 +10,7 @@ import { JWT } from 'google-auth-library';
  * (por separar permisos — esta solo necesita leer Drive, no escribir
  * Sheets). Variables de entorno nuevas:
  *
- * GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL="live-drive-reader@tu-proyecto.iam.gserviceaccount.com"
+ * GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL="lausana-drive-reader@tu-proyecto.iam.gserviceaccount.com"
  * GOOGLE_DRIVE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
  * GOOGLE_DRIVE_ACCOUNT_FOLDERS='[{"accountId":"act_1586604569106474","folderId":"1AbC2dEfGhIjKlMnOpQrStUvWxYz"}]'
  *

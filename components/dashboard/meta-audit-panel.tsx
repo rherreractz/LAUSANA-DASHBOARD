@@ -25,7 +25,7 @@ interface NamedAccount {
  * sensible, el token sigue privado solo en el servidor). Ejemplo en
  * .env.local:
  *
- * NEXT_PUBLIC_META_AD_ACCOUNTS='[{"name":"Live / Neo","accountId":"act_1586604569106474"},{"name":"LIVE / OOM Creativo","accountId":"act_2737760363054335"},{"name":"Live","accountId":"act_1670510807480763"}]'
+ * NEXT_PUBLIC_META_AD_ACCOUNTS='[{"name":"Lausana / Neo","accountId":"act_1586604569106474"},{"name":"LAUSANA / OOM Creativo","accountId":"act_2737760363054335"},{"name":"Lausana","accountId":"act_1670510807480763"}]'
  */
 function getNamedAccounts(): NamedAccount[] {
   const raw = process.env.NEXT_PUBLIC_META_AD_ACCOUNTS;
@@ -185,7 +185,7 @@ export function MetaAuditPanel() {
         <Button
           onClick={runAudit}
           disabled={loading || !effectiveAccountId}
-          className="h-9 bg-[#EFF767] px-4 text-zinc-950 hover:bg-[#EFF767]/90"
+          className="h-9 bg-[#53958B] px-4 text-zinc-950 hover:bg-[#53958B]/90"
         >
           {loading ? 'Auditando… (puede tardar ~30-60s)' : 'Correr auditoría de Meta Ads'}
         </Button>

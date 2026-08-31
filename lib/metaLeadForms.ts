@@ -1,7 +1,7 @@
 /**
  * Lee los formularios de leads (Instant Forms / Lead Ads) de una Página de
  * Facebook, para poder usarlos automáticamente en los anuncios sin que
- * nadie tenga que copiar el Form ID a mano — solo el nombre (ej. "Live
+ * nadie tenga que copiar el Form ID a mano — solo el nombre (ej. "Lausana
  * General").
  */
 

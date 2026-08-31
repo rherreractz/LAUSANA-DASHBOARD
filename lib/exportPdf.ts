@@ -32,7 +32,7 @@ export async function exportLeadsToPdf(leads: ProcessedLead[], options: ExportOp
   function drawHeader(subtitle?: string) {
     doc.setFontSize(16);
     doc.setTextColor(20, 20, 20);
-    doc.text('Live Desarrollos — Reporte de Leads', 40, 40);
+    doc.text('Lausana — Reporte de Leads', 40, 40);
 
     doc.setFontSize(10);
     doc.setTextColor(90, 90, 90);
@@ -126,6 +126,6 @@ export async function exportLeadsToPdf(leads: ProcessedLead[], options: ExportOp
     doc.deletePage(1);
   }
 
-  const filename = `live-desarrollos-leads-${new Date().toISOString().slice(0, 10)}.pdf`;
+  const filename = `lausana-leads-${new Date().toISOString().slice(0, 10)}.pdf`;
   doc.save(filename);
 }

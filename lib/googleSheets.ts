@@ -87,6 +87,6 @@ async function fetchLeadsFromSheet(): Promise<RawLead[]> {
  * Google en cada request al dashboard. Ajusta `revalidate` según qué tan
  * "en vivo" necesites los datos (o quítalo si prefieres SSR puro).
  */
-export const getLeads = unstable_cache(fetchLeadsFromSheet, ['live-desarrollos-leads'], {
+export const getLeads = unstable_cache(fetchLeadsFromSheet, ['lausana-leads'], {
   revalidate: 60,
 });

@@ -30,7 +30,7 @@ import type { ProcessedLead } from '@/lib/types';
 const CHART_IDS = ['leads-por-dia', 'vivir-invertir', 'presupuesto', 'calidad-historica'] as const;
 type ChartId = (typeof CHART_IDS)[number];
 const DEFAULT_CHART_ORDER: ChartId[] = ['leads-por-dia', 'vivir-invertir', 'presupuesto', 'calidad-historica'];
-const CHART_ORDER_STORAGE_KEY = 'live-dashboard-chart-order-v2';
+const CHART_ORDER_STORAGE_KEY = 'lausana-dashboard-chart-order-v2';
 
 function isToday(date: Date | null) {
   if (!date) return false;
@@ -131,14 +131,14 @@ export function DashboardShell({
     containerRef: columnContainerRef,
     handleDividerMouseDown: handleColumnDividerMouseDown,
     resetWeights: resetColumnWeights,
-  } = useMosaicWeights('column', [9, 3], 'live-dashboard-column-weights-v2');
+  } = useMosaicWeights('column', [9, 3], 'lausana-dashboard-column-weights-v2');
 
   const {
     weights: chartRowWeights,
     containerRef: chartRowContainerRef,
     handleDividerMouseDown: handleChartRowDividerMouseDown,
     resetWeights: resetChartRowWeights,
-  } = useMosaicWeights('row', [1.4, 1, 1, 1], 'live-dashboard-chart-row-weights-v2');
+  } = useMosaicWeights('row', [1.4, 1, 1, 1], 'lausana-dashboard-chart-row-weights-v2');
 
   useEffect(() => {
     try {
@@ -463,7 +463,7 @@ export function DashboardShell({
               onClick={() => setChartEditMode((v) => !v)}
               className={`h-7 gap-1.5 text-xs ${
                 chartEditMode
-                  ? 'bg-[#EFF767] text-zinc-950 hover:bg-[#EFF767]/90'
+                  ? 'bg-[#53958B] text-zinc-950 hover:bg-[#53958B]/90'
                   : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
               }`}
             >
