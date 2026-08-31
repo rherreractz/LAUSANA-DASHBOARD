@@ -34,15 +34,25 @@ export function DashboardTabs({
   return (
     <Tabs value={activeView} onValueChange={(v) => setActiveView(v as string)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 sm:px-6">
-        <TabsList variant="line" className="h-10 gap-1 p-0">
+        {/* min-w-0 + overflow-x-auto: en móvil (S25 Ultra ~360px) las 3
+            pestañas no caben en una línea; que scrolleen dentro de su fila
+            en vez de empujar el botón de engranaje fuera de pantalla.
+            Labels cortos en móvil para que normalmente ni haga falta el
+            scroll. */}
+        <TabsList
+          variant="line"
+          className="h-10 min-w-0 gap-1 overflow-x-auto p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <TabsTrigger value="leads" className="rounded-md px-3 text-sm text-muted-foreground data-active:text-foreground">
             Leads
           </TabsTrigger>
           <TabsTrigger value="meta-ads" className="rounded-md px-3 text-sm text-muted-foreground data-active:text-foreground">
-            Auditoría Meta Ads
+            <span className="sm:hidden">Auditoría</span>
+            <span className="hidden sm:inline">Auditoría Meta Ads</span>
           </TabsTrigger>
           <TabsTrigger value="meta-campaign" className="rounded-md px-3 text-sm text-muted-foreground data-active:text-foreground">
-            Generar Campaña
+            <span className="sm:hidden">Campaña</span>
+            <span className="hidden sm:inline">Generar Campaña</span>
           </TabsTrigger>
         </TabsList>
 
@@ -54,7 +64,7 @@ export function DashboardTabs({
           onClick={() => setActiveView('settings')}
           aria-label="Ajustes"
           title="Ajustes"
-          className={`ml-3 flex h-8 w-8 items-center justify-center rounded-md border-l border-border pl-3 text-muted-foreground hover:text-foreground ${
+          className={`ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border-l border-border pl-3 text-muted-foreground hover:text-foreground ${
             activeView === 'settings' ? 'text-foreground' : ''
           }`}
         >
