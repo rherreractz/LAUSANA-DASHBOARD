@@ -21,6 +21,11 @@ export const AUDIT_CATEGORIES: AuditCategory[] = [
     weight: 0.3,
     checklist: `## Pixel / CAPI Health (30% weight, 10 checks: M01-M10)
 
+Sobre el campo "pixel_event_source_stats": viene de /{pixel_id}/stats?aggregation=event_source de los últimos 7 días — es un desglose REAL de cuántos eventos llegaron por navegador (browser/pixel) vs por servidor (server/CAPI). Úsalo para evaluar M02 con evidencia real:
+- Si hay eventos con fuente "server" (o similar) además de "browser", CAPI SÍ está activa → M02 = PASS (a menos que el volumen server sea muy bajo comparado al de navegador, ahí sería WARNING).
+- Si el campo no viene, viene vacío, o solo trae "browser" sin ningún dato de "server", CAPI NO está mandando eventos server-side → M02 = FAIL (no marques N/A si el campo sí llegó pero solo muestra navegador — eso ES evidencia de que falta CAPI, no falta de datos).
+- Si el campo trae un error (ej. de permisos), ahí sí es N/A por falta de datos, dilo explícitamente en el finding.
+
 | ID | Check | Severity | Pass | Warning | Fail |
 |----|-------|----------|------|---------|------|
 | M01 | Meta Pixel installed | Critical | Pixel firing on all pages | Firing on most pages (>90%) | Pixel not firing |
@@ -39,6 +44,10 @@ export const AUDIT_CATEGORIES: AuditCategory[] = [
     label: 'Creative (Diversity & Fatigue)',
     weight: 0.3,
     checklist: `## Creative: Diversity & Fatigue (30% weight, 12 checks: M25-M32 + M-CR1 a M-CR4 + M-AN1)
+
+Nota importante sobre los datos: la lista de "ads" que recibes YA está filtrada a status ACTIVE únicamente — no incluye el historial completo de la cuenta (anuncios de campañas pausadas/archivadas de años anteriores). Si un mismo creative_id aparece reciclado ÚNICAMENTE en anuncios que ya no están activos, eso NO cuenta como problema de M-AN1/M25/M26/M31 — esos anuncios ya no corren ni gastan presupuesto, es historial, no una fatiga creativa vigente. Evalúa estos checks solo contra lo que de verdad está sirviendo impresiones hoy.
+
+Nota sobre copy autorizado: en cuentas donde el mismo texto/copy se repite entre anuncios activos, es común que el copy en sí esté aprobado por el cliente y no se pueda reescribir libremente — eso NO es motivo para marcar el check como N/A/neutro (el riesgo real de fatiga de audiencia y CPMs crecientes sigue existiendo sin importar la razón de negocio detrás). Mantén el result/score honesto según lo que de verdad está corriendo. Pero SÍ ajusta la recomendación a algo realista dentro de esa restricción: en vez de "reescribir el copy", sugiere diversificar formato (video vs estático vs carrusel), tratamiento visual, talento/locación en el video, música/ritmo, o ángulo de la miniatura — variedad real sin depender de cambiar el texto aprobado.
 
 | ID | Check | Severity | Pass | Warning | Fail |
 |----|-------|----------|------|---------|------|

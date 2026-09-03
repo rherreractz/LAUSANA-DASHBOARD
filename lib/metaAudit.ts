@@ -22,7 +22,7 @@ function scopeDataForCategory(data: MetaAdsData, categoryKey: string): Partial<M
 
   switch (categoryKey) {
     case 'pixel_capi':
-      return { ...base, account: data.account, pixel: data.pixel };
+      return { ...base, account: data.account, pixel: data.pixel, pixel_event_source_stats: data.pixel_event_source_stats };
     case 'creative': {
       // Los checks de esta categoría (M25, M26, M31, M-AN1, etc.) evalúan
       // "qué tan diversa/fresca es la biblioteca creativa que está

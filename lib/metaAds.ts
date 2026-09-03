@@ -110,6 +110,8 @@ export interface MetaAdsData {
   customaudiences?: unknown[];
   insights?: unknown[];
   pixel?: unknown;
+  /** Desglose real de eventos por fuente (navegador vs servidor/CAPI) — de /{pixel_id}/stats?aggregation=event_source. */
+  pixel_event_source_stats?: unknown;
 }
 
 function defaultDateRange(): { since: string; until: string } {
@@ -181,6 +183,30 @@ export async function fetchMetaAdsData({ accountId, token, since, until }: Fetch
   if (pixelId) {
     const pixel = await graphGet(pixelId, { fields: PIXEL_FIELDS }, token, apiVersion);
     record('pixel', pixel);
+
+    // M02 (CAPI activa) nunca podía evaluarse de verdad porque nunca le
+    // dábamos a la IA ningún dato que indicara si hay eventos server-side
+    // — solo los campos básicos del pixel (last_fired_time, etc.), que
+    // solo confirman que el pixel del NAVEGADOR está vivo. Este endpoint
+    // (/stats con aggregation=event_source) sí desglosa cuántos eventos
+    // llegaron por navegador vs por servidor en los últimos días — con
+    // esto la IA puede confirmar CAPI con evidencia real, en vez de
+    // caer siempre en N/A "no se proporcionaron datos".
+    if (!('_error' in pixel)) {
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const eventSourceStats = await graphGet(
+        `${pixelId}/stats`,
+        {
+          aggregation: 'event_source',
+          start_time: String(Math.floor(sevenDaysAgo.getTime() / 1000)),
+          end_time: String(Math.floor(now.getTime() / 1000)),
+        },
+        token,
+        apiVersion,
+      );
+      record('pixel_event_source_stats', eventSourceStats);
+    }
   } else {
     result.errors.push({ section: 'pixel', message: 'META_PIXEL_ID no está configurado; se omitió el fetch del pixel.' });
   }
