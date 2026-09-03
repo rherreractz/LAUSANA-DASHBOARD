@@ -40,8 +40,6 @@ export const AUDIT_CATEGORIES: AuditCategory[] = [
     weight: 0.3,
     checklist: `## Creative: Diversity & Fatigue (30% weight, 12 checks: M25-M32 + M-CR1 a M-CR4 + M-AN1)
 
-Nota importante sobre los datos: la lista de "ads" que recibes YA está filtrada a status ACTIVE únicamente — no incluye el historial completo de la cuenta (anuncios de campañas pausadas/archivadas de años anteriores). Si un mismo creative_id aparece reciclado ÚNICAMENTE en anuncios que ya no están activos, eso NO cuenta como problema de M-AN1/M25/M26/M31 — esos anuncios ya no corren ni gastan presupuesto, es historial, no una fatiga creativa vigente. Evalúa estos checks solo contra lo que de verdad está sirviendo impresiones hoy.
-
 | ID | Check | Severity | Pass | Warning | Fail |
 |----|-------|----------|------|---------|------|
 | M25 | Creative format diversity | Critical | >=3 formats active (image, video, carousel) | 2 formats | Only 1 format used |
