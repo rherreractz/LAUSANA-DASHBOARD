@@ -37,14 +37,35 @@ export interface AppSettings {
   activeSource: 'hubspot' | 'ghl';
   /** Override del Page ID de Meta (vacío = usa NEXT_PUBLIC_META_PAGE_ID del .env). */
   metaPageId: string;
+  /**
+   * Logo del cliente como data URI (ej. "data:image/png;base64,iVBOR...").
+   * Vacío = no se muestra logo. Se sube desde Ajustes → General; se guarda
+   * inline en el Sheet (no hay filesystem en Vercel). Límite práctico: una
+   * celda de Google Sheets aguanta 50 000 caracteres, así que el logo debe
+   * pesar poco — la subida lo valida en el navegador y en /api/settings.
+   */
+  logoDataUri: string;
+  /**
+   * Si el logo es de un solo color claro (ej. blanco) sobre fondo
+   * transparente, en modo claro se vuelve invisible. `'dark'` = mostrar el
+   * logo sobre una placa oscura fija (no depende del tema activo, siempre
+   * oscura) para que siga siendo legible. `''` = sin placa, se muestra tal
+   * cual (logos con color/fondo propio).
+   */
+  logoBackground: '' | 'dark';
 }
 
-const SETTINGS_KEYS = ['displayName', 'primaryColor', 'activeSource', 'metaPageId'] as const;
+/** Tope de caracteres para el data URI del logo (margen bajo el límite de 50k por celda del Sheet). */
+export const LOGO_DATA_URI_MAX_LENGTH = 45000;
+
+const SETTINGS_KEYS = ['displayName', 'primaryColor', 'activeSource', 'metaPageId', 'logoDataUri', 'logoBackground'] as const;
 
 function defaultSettings(): AppSettings {
   return {
     displayName: '',
     primaryColor: '',
+    logoDataUri: '',
+    logoBackground: '',
     // Default razonable: si hay token de HubSpot configurado, asumimos que
     // ese es el CRM real en uso hoy — evita que un cliente que nunca tocó
     // Ajustes se quede sin leads por un default equivocado.

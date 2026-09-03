@@ -1,75 +1,27 @@
-'use client';
+import { getSettings } from '@/lib/settingsStorage';
+import { LoginFormBoundary } from './login-form';
 
-import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+// Render dinámico: lee el logo/nombre desde la pestaña Settings del Sheet en
+// vivo (con caché de 2 min en lib/settingsStorage.ts). No debe prerenderizarse
+// en build — ahí todavía no hay credenciales ni tiene sentido llamar a Google.
+export const dynamic = 'force-dynamic';
 
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export default async function LoginPage() {
+  // getSettings() nunca lanza: si el Sheet falla, devuelve los valores por
+  // defecto (sin logo, nombre vacío) — el login sigue funcionando igual.
+  const settings = await getSettings();
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error || 'Contraseña incorrecta.');
-      }
-      const from = searchParams.get('from');
-      const destination = !from || from === '/' ? '/meta-ads' : from;
-      router.push(destination);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ocurrió un error inesperado.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  // El campo de usuario solo se pide si el servidor tiene PANEL_USER
+  // configurado (ver app/api/login/route.ts). Así, si nadie lo definió, el
+  // login se comporta como antes (solo contraseña) y no bloquea a nadie.
+  const requireUser = Boolean(process.env.PANEL_USER);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-zinc-100">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-        <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Lausana</p>
-        <h1 className="mb-6 text-xl font-semibold tracking-tight text-zinc-50">Panel de Reportes</h1>
-
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-zinc-500">Contraseña</label>
-        <Input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoFocus
-          className="mb-3 border-zinc-800 bg-zinc-950 text-zinc-100"
-        />
-
-        {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
-
-        <Button
-          type="submit"
-          disabled={loading || !password}
-          className="w-full bg-[#53958B] text-zinc-950 hover:bg-[#53958B]/90"
-        >
-          {loading ? 'Entrando…' : 'Entrar'}
-        </Button>
-      </form>
-    </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
-      <LoginForm />
-    </Suspense>
+    <LoginFormBoundary
+      displayName={settings.displayName}
+      logoDataUri={settings.logoDataUri}
+      logoBackground={settings.logoBackground}
+      requireUser={requireUser}
+    />
   );
 }

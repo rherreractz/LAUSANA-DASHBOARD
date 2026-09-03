@@ -8,6 +8,21 @@ import type { AppSettings } from '@/lib/settingsStorage';
 
 type Section = 'general' | 'advanced';
 
+// Un poco por debajo del tope del servidor (LOGO_DATA_URI_MAX_LENGTH en
+// lib/settingsStorage.ts) — no se importa de ahí para no arrastrar
+// google-spreadsheet al bundle del cliente.
+const LOGO_MAX_DATA_URI_LENGTH = 44000;
+const LOGO_ACCEPTED_TYPES = 'image/png,image/jpeg,image/webp,image/svg+xml,image/gif';
+
+function readFileAsDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 const THEME_OPTIONS: { value: string; label: string }[] = [
   { value: 'light', label: 'Claro' },
   { value: 'dark', label: 'Oscuro' },
@@ -68,6 +83,30 @@ export function SettingsPanel({ initialSettings }: { initialSettings: AppSetting
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+
+  async function handleLogoFile(file: File | undefined) {
+    setLogoError(null);
+    if (!file) return;
+    try {
+      const dataUri = await readFileAsDataUri(file);
+      if (!dataUri.startsWith('data:image/')) {
+        setLogoError('El archivo no es una imagen válida.');
+        return;
+      }
+      if (dataUri.length > LOGO_MAX_DATA_URI_LENGTH) {
+        setLogoError(
+          `La imagen pesa demasiado (≈${Math.round(dataUri.length / 1000)} KB codificada, máx. ~${Math.round(
+            LOGO_MAX_DATA_URI_LENGTH / 1000,
+          )} KB). Usa una versión más pequeña o comprimida.`,
+        );
+        return;
+      }
+      setSettings((s) => ({ ...s, logoDataUri: dataUri }));
+    } catch {
+      setLogoError('No se pudo leer el archivo.');
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -96,17 +135,22 @@ export function SettingsPanel({ initialSettings }: { initialSettings: AppSetting
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* Sidebar de navegación interna de Ajustes */}
-      <nav className="w-48 shrink-0 border-r border-border p-3">
-        <p className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Ajustes</p>
-        <ul className="flex flex-col gap-0.5">
+    // En mobile (< sm) apilado: el menú va arriba como fila horizontal
+    // angosta y el contenido ocupa TODO el ancho debajo — con la sidebar
+    // fija de antes (w-48 en una fila junto al contenido) en pantallas
+    // angostas (~360px) casi no quedaba espacio para el contenido. Desde
+    // sm: hacia arriba se vuelve a la sidebar de siempre, sin cambios.
+    <div className="flex h-full min-h-0 flex-col sm:flex-row">
+      {/* Menú de navegación interna de Ajustes: sidebar en desktop, fila de tabs scrolleable en mobile */}
+      <nav className="shrink-0 border-b border-border p-2 sm:w-48 sm:border-b-0 sm:border-r sm:p-3">
+        <p className="mb-2 hidden px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground sm:block">Ajustes</p>
+        <ul className="flex gap-1 overflow-x-auto [scrollbar-width:none] sm:flex-col sm:gap-0.5 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
           {NAV_ITEMS.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className="shrink-0">
               <button
                 type="button"
                 onClick={() => setSection(item.id)}
-                className={`w-full rounded-md px-2 py-1.5 text-left text-sm ${
+                className={`rounded-md px-3 py-1.5 text-left text-sm sm:w-full ${
                   section === item.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
@@ -118,7 +162,7 @@ export function SettingsPanel({ initialSettings }: { initialSettings: AppSetting
       </nav>
 
       {/* Contenido de la sección seleccionada */}
-      <div className="min-h-0 flex-1 overflow-auto p-6">
+      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
         <div className="mx-auto flex max-w-xl flex-col gap-6">
           {section === 'general' && (
             <div className="flex flex-col gap-4">
@@ -136,6 +180,69 @@ export function SettingsPanel({ initialSettings }: { initialSettings: AppSetting
                   className="border-border bg-background text-foreground"
                 />
                 <p className="text-xs text-muted-foreground">Aparece en el encabezado del panel. Déjalo vacío para usar el nombre por default.</p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="logo" className="text-sm text-muted-foreground">
+                  Logo
+                </label>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border border-border ${
+                      settings.logoBackground === 'dark' ? 'bg-zinc-900' : 'bg-background'
+                    }`}
+                  >
+                    {settings.logoDataUri ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={settings.logoDataUri} alt="Logo" className="max-h-full max-w-full object-contain" />
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">sin logo</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <input
+                      id="logo"
+                      type="file"
+                      accept={LOGO_ACCEPTED_TYPES}
+                      onChange={(e) => {
+                        void handleLogoFile(e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                      className="text-xs text-muted-foreground file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1 file:text-xs file:text-foreground hover:file:bg-muted/70"
+                    />
+                    {settings.logoDataUri && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLogoError(null);
+                          setSettings((s) => ({ ...s, logoDataUri: '' }));
+                        }}
+                        className="w-fit text-xs text-red-600 hover:underline dark:text-red-400"
+                      >
+                        Quitar logo
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {settings.logoDataUri && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={settings.logoBackground === 'dark'}
+                      onChange={(e) => setSettings((s) => ({ ...s, logoBackground: e.target.checked ? 'dark' : '' }))}
+                    />
+                    El logo es de un solo color claro (ej. blanco) — mostrarlo sobre una placa oscura para que no desaparezca en modo
+                    claro
+                  </label>
+                )}
+                {logoError ? (
+                  <p className="text-xs text-red-600 dark:text-red-400">{logoError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    PNG, JPG, WEBP o SVG. Aparece en la pantalla de inicio de sesión y en el encabezado del panel. Usa una imagen chica
+                    (idealmente &lt; 30 KB); si es muy pesada no se podrá guardar.
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -168,33 +275,47 @@ export function SettingsPanel({ initialSettings }: { initialSettings: AppSetting
             <div className="flex flex-col gap-4">
               <h2 className="text-lg font-semibold text-foreground">Avanzado</h2>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <label className="text-sm text-muted-foreground">Fuente de leads</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <input
-                      type="radio"
-                      name="activeSource"
-                      checked={settings.activeSource === 'hubspot'}
-                      onChange={() => setSettings((s) => ({ ...s, activeSource: 'hubspot' }))}
-                    />
-                    HubSpot
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <input
-                      type="radio"
-                      name="activeSource"
-                      checked={settings.activeSource === 'ghl'}
-                      onChange={() => setSettings((s) => ({ ...s, activeSource: 'ghl' }))}
-                    />
-                    GoHighLevel
-                  </label>
-                </div>
                 <p className="text-xs text-muted-foreground">
-                  Cambia de dónde se leen los leads en la pestaña "Leads". Solo funciona si ese CRM ya tiene credenciales configuradas en
-                  el servidor — si cambias a uno sin configurar, vas a ver el dashboard sin leads y un aviso en los logs del servidor, no
-                  un error visible aquí.
+                  Solo una fuente puede estar encendida a la vez — enciende una y la otra se apaga sola. Solo funciona de verdad si ese
+                  CRM ya tiene credenciales configuradas en el servidor; si enciendes uno sin configurar, vas a ver el dashboard sin
+                  leads (con un aviso en los logs del servidor, no un error visible aquí).
                 </p>
+
+                {(
+                  [
+                    { key: 'hubspot', label: 'HubSpot' },
+                    { key: 'ghl', label: 'GoHighLevel' },
+                  ] as const
+                ).map((source) => {
+                  const on = settings.activeSource === source.key;
+                  return (
+                    <button
+                      key={source.key}
+                      type="button"
+                      onClick={() => setSettings((s) => ({ ...s, activeSource: source.key }))}
+                      className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
+                        on ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-border bg-background hover:bg-muted'
+                      }`}
+                    >
+                      <span className="text-sm text-foreground">{source.label}</span>
+                      <span
+                        role="switch"
+                        aria-checked={on}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                          on ? 'bg-emerald-500' : 'bg-muted'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                            on ? 'translate-x-4' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="flex flex-col gap-1.5">
