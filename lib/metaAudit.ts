@@ -102,7 +102,8 @@ Devuelve EXCLUSIVAMENTE un objeto JSON (sin \`\`\`json, sin texto antes o despu�
 
 Reglas:
 - Si un check no se puede evaluar por falta de datos, márcalo "N/A" y explica en "finding" qué dato faltó — nunca inventes un resultado.
-- "score" es tu evaluación general de la categoría (0-100), no un promedio mecánico — considera severidad de las fallas.
+- Si un check simplemente NO APLICA al modelo de negocio de esta cuenta (ej. un check de e-commerce/catálogo en una cuenta de generación de leads inmobiliarios), márcalo también "N/A", pero en "finding" dilo explícitamente como "No aplica: [razón de negocio]" — distinto de un N/A por falta de datos.
+- "score" es tu evaluación general de la categoría (0-100), no un promedio mecánico — considera severidad de las fallas. Al considerar los N/A: los que NO APLICAN AL NEGOCIO son NEUTROS — no deben bajar el score, ya que no representan un problema real, solo un check que nunca iba a aplicar aquí. Los N/A por FALTA DE DATOS/CONFIGURACIÓN sí deben seguir pesando como una brecha real (ej. no tener pixel configurado deja ciega a la cuenta en 8 checks más — eso sigue siendo un problema real, no se debe ocultar tratándolo como neutro).
 - Todo el texto debe estar en español, corto y directo.
 
 REGLAS DE FORMATO JSON (revísalas antes de responder):
