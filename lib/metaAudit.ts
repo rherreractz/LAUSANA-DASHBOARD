@@ -23,8 +23,18 @@ function scopeDataForCategory(data: MetaAdsData, categoryKey: string): Partial<M
   switch (categoryKey) {
     case 'pixel_capi':
       return { ...base, account: data.account, pixel: data.pixel };
-    case 'creative':
-      return { ...base, ads: cappedAds, insights: cappedInsights };
+    case 'creative': {
+      // Los checks de esta categoría (M25, M26, M31, M-AN1, etc.) evalúan
+      // "qué tan diversa/fresca es la biblioteca creativa que está
+      // corriendo HOY" — no el historial completo de la cuenta. Sin este
+      // filtro, la IA veía TODOS los anuncios desde el inicio de la
+      // cuenta (2021+ en algunos casos), incluidos anuncios de campañas
+      // pausadas/archivadas hace años, y penalizaba por "reciclar
+      // creativos" cuando en realidad esos anuncios viejos ya no corren
+      // ni gastan un peso — no es un problema real, es historial.
+      const activeAds = cappedAds?.filter((ad: any) => ad?.status === 'ACTIVE');
+      return { ...base, ads: activeAds, insights: cappedInsights };
+    }
     case 'account_structure':
       return { ...base, account: data.account, campaigns: data.campaigns, adsets: data.adsets, insights: cappedInsights };
     case 'audience_targeting':
